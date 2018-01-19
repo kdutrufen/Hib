@@ -1,0 +1,903 @@
+---
+title: "DE analysis from Rsubread"
+author: "Carlos Eduardo Madureira Trufen"
+date: "6 de agosto de 2017"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Set dir
+```{r, message = FALSE}
+setwd("~/Dropbox/Script")
+```
+
+# Read in Hib Matrix form Rsubread alignment
+```{r }
+RsubreadCountData = read.csv("~/Dropbox/Dados_Alinhamento/Rsubread_featurecounts/Rsubread_Count_Table_Renamed_without_rRNA.csv", header=TRUE, sep = "\t", row.names = 1)
+countData = RsubreadCountData
+
+THRESHOLD <- 0.01
+LFC = 2
+```
+
+# Sets design
+```{r }
+HibDesign1 = data.frame(row.names = colnames( countData ),
+                        condition = rep(c("S01", "S02", "S03", "S04", "S05", "S06"), each = 4))
+```
+
+```{r }
+col.cell <- c("purple","orange", "blue", "red", "green", "black")[as.factor(HibDesign1[,1])]
+par(mar=c(6,6,3,3))
+barplot(c(mean(colSums(countData)), colSums(countData)), names.arg=c("m?dia", colnames(countData)), col=c("yellow", col.cell), las=2, main="", xlab="", ylab="", ylim=c(0,max(colSums(countData))))
+title(ylab="Tamanho da biblioteca", line=4, cex.lab=1.5)
+title(xlab="Amostras", line=4, cex.lab=1.5)
+abline(h=2e+6, col="black")
+```
+
+# Calls for libraries
+```{r, message=FALSE}
+library("RUVSeq")
+library("EDASeq")
+```
+
+
+
+# Least significantly DE genes based on a first-pass DE analysis performed prior to RUVg normalization.
+```{r, message=FALSE}
+library("edgeR")
+group=as.factor(HibDesign1[,1])
+design <- model.matrix(~0 + group)
+colnames(design) <- levels(group)
+rownames(design) = colnames(countData)
+d <- DGEList(counts=countData, lib.size = colSums(countData), group=group)
+d <- calcNormFactors(d , method="TMM")
+d <- estimateDisp(d , design , tagwise=TRUE, robust=TRUE)
+fit <- glmFit(d , design)
+lrt <- glmLRT(fit ,coef=2:6)
+top <-   topTags(lrt, n=nrow(d))$table
+empirical <-   rownames(countData)[which(!(rownames(countData) %in% rownames(top)[1:500]))]
+```
+
+# Here, we consider all but the top 500 genes as ranked by edgeR p-values
+```{r }
+# The RUVg function  returns  two  pieces  of  information:
+# the estimated factors of unwanted variation nd the normalized counts obtained by regressing the original counts on the unwanted factors
+# The normalized values are stored in the normalizedCounts slot
+set2 <- RUVg(as.matrix(d), empirical, k=1)
+```
+
+```{r}
+col.cell <- c("purple","orange", "blue", "red", "green", "black")[as.factor(HibDesign1[,1])]
+# plotRLE creates relative log expression (RLE) plot, initially proposed to measure the overall quality of a dataset 
+# plotRLE can also be used to visualize the presence of unwanted batch effects in the data
+par(mfrow=c(1,2))
+plotRLE(as.matrix(countData), outline=FALSE, ylim=c(-4, 4), col=col.cell)
+plotRLE(set2$normalizedCounts, outline=FALSE, ylim=c(-2, 2), col=col.cell)
+```
+
+# Set design, removing batch effect
+# Create the design matrix
+```{r}
+HibDesign2 = data.frame(row.names = colnames( countData ), condition = HibDesign1$condition,  set2$W)
+design = model.matrix(~0+group+set2$W, data = HibDesign2)
+colnames(design) <- c(levels(group), "W")
+group=as.factor(HibDesign1$condition)
+```
+
+# edgeR
+```{r}
+# Obs: Never enter RPKM or FPKM values to edgeR in place of read counts.
+```
+
+# Coverts the count matrix into an edgeR object
+```{r}
+d <- DGEList(counts=countData, lib.size = colSums(countData), group=group)
+```
+
+# How many genes have 0 counts across all samples
+```{r}
+table(rowSums(d$counts==0)==24)
+```
+
+# Pre-filtering
+```{r}
+# Setting CPM threshold
+# As a general rule, a good threshold can be chosen by identifying the CPM that corresponds to a count of 10
+# Direct counts do not account for differences in library sizes between samples.
+myCPM = cpm(d)
+cpm(1, mean(d$samples$lib.size))
+CPMthershold = round(cpm(1, mean(d$samples$lib.size)), digits=2)
+```
+
+# Filter low expression tags
+```{r}
+# keep only those genes that have at least CPMthershold read per million in at least 4 samples
+keep <- rowSums(cpm(d)> as.vector(CPMthershold)) >= 4
+filtered <- d[keep,]
+summary(keep)
+dim(filtered )
+```
+
+# Normalization for composition bias
+```{r}
+# Trimmed mean of M-values (TMM) normalization is performed to eliminate composition biases between libraries
+# normalizes for RNA composition, yielding the effective library size
+# The calcNormFactors() function returns the DGEList argument with only the norm.factors changed.
+#tmm <- calcNormFactors(d , "TMM") 
+tmm <- calcNormFactors(filtered , "TMM") 
+tpm = cpm(tmm, normalized.lib.sizes=TRUE)
+logtmm = cpm(tmm, log=TRUE)
+logcounts <- cpm(filtered,log=TRUE)
+```
+
+# Normalization for composition bias
+```{r}
+par(mfrow = c(1,2))
+boxplot(logcounts, xlab="", ylab="Log2 counts per million",las=2)
+abline(h=median(logcounts),col="blue") # Let's add a blue horizontal line that corresponds to the median logCPM
+title("Boxplots of logCPMs (unnormalised)")
+boxplot(logtmm, xlab="", ylab="Log2 counts per million",las=2)
+abline(h=median(logtmm),col="blue") # Let's add a blue horizontal line that corresponds to the median logCPM
+title("Boxplots of logCPMs (normalised)")
+```
+
+# Plot the biased and unbiased MD plots side by side for the same sample to see the before and after TMM normalisation effect.
+```{r}
+#par(mfrow=c(6,8))
+#par(mar=c(1,1,1,1))
+#for (i in 1:ncol(tmm)){
+#  plotMD(logcounts,column = i)
+#  abline(h=0,col="grey")
+#  plotMD(cpm(tmm, log=TRUE), column=i)
+#  abline(h=0,col="red",lty="dotted", lwd=2)
+#}
+```
+
+# The performance of the TMM normalization procedure can be examined using mean-difference (MD) plots
+```{r}
+# plotMD.DGEList() creates a mean-difference plot (aka MA plot) with color coding for highlighted points
+# Each point represents a gene, and the red line lies at a M-value of zero.
+
+# The mean-difference plots show average expression (mean: x-axis) against log-fold-changes (difference: y-axis).
+par(mfrow=c(1,2))
+plotMD(logcounts,column = 7)
+abline(h=0,col="grey")
+plotMD(logcounts,column = 11)
+abline(h=0,col="grey")
+```
+
+# Multidimensional scaling plot of distances between gene expression profiles
+```{r}
+# Replicate samples from the same group cluster together in the plot, while samples from different groups form separate clusters.
+# This indicates that the differences between groups are larger than those within groups, i.e., differential expression is greater than the variance and can be detected
+# The alternative method (method="bcv") calculates distances based on biological coefficient of variation. A set of top genes are chosen that have largest biological variation between the libraries (those with largest genewise dispersion treating all libraries as one group). Then the distance between each pair of libraries (columns) is the biological coefficient of variation (square root of the common dispersion) between those two libraries alone, using the top genes.
+par(mfrow=c(1,1))
+points <- c(0,1,2,15,16,17)
+colors <- c("blue", "darkgreen", "red", "orange", "purple", "black")
+plotMDS(tmm, col=colors[as.factor(HibDesign2[,1])], pch=points[as.factor(HibDesign2[,1])], method="bcv")
+#legend("topright", legend=levels(HibDesign2[,1]), pch=points, col=colors , ncol=2,cex=0.7)
+title("Amostras")
+```
+
+# predFC() computes estimated coefficients for a NB glm in such a way that the log-fold-changes are shrunk towards zero.
+```{r}
+# prior.count == the average prior count to be added to each observation. Larger values produce more shrinkage
+logCPM <- predFC(d, design , prior.count=2*ncol(d))
+plotMDS(logCPM, main="logFC distance") 
+```
+
+# 
+```{r, message=FALSE}
+# An alternative to plotMDS for examining relationships between samples is using hierarchical clustering
+# We can do this using the heatmap.2() function from the gplots package
+#  In this example heatmap.2 calculates a matrix of euclidean distances from the logCPM (logcounts object) for the 500 most variable genes.
+library("gplots")
+library("RColorBrewer")
+var_genes <- apply(logcounts, 1, var) # We estimate the variance for each row in the logcounts matrix
+select_var <- names(sort(var_genes, decreasing=TRUE))[1:500] # Get the gene names for the top 500 most variable genes
+highly_variable_lcpm <- logcounts[select_var,] # Subset logcounts matrix
+mypalette <- brewer.pal(11,"RdYlBu") # Get some nicer colours
+morecols <- colorRampPalette(mypalette)
+heatmap.2(highly_variable_lcpm,col=rev(morecols(50)),trace="none", main="Top 500 most variable genes across samples",ColSideColors=col.cell,scale="row") # Plot the heatmap
+```
+
+```{r}
+# The normalization factors multiply to unity across all libraries
+# A normalization factor below one indicates that the library size will be scaled down, as there is more suppression (i.e., composition bias) in that library relative to the other libraries
+# Conversely, a factor above one scales up the library size and is equivalent to downscaling the counts.
+# effective library sizes
+effectivelib = tmm$samples$lib.size * tmm$samples$norm.factors
+```
+
+# How are time samples correlated?
+```{r}
+logFC <- predFC(d,design,prior.count=1)
+cor(logFC) 
+```
+
+# Estimating the dispersions (Obs: generalized linear model)
+```{r}
+# edgeR uses the Cox-Reid profile-adjusted likelihood (CR) method in estimating dispersions
+# It takes care of multiple factors by fitting generalized linear models (GLM) with a design matrix
+
+# The trended NB dispersion is estimated using the estimateDisp function.
+# Maximizes the negative binomial likelihood to give the estimate of the common, trended and tagwise dispersions across all tags.
+#disp <- estimateDisp(tmm, modSv , tagwise=TRUE, robust=TRUE) # modSv from sva package
+disp <- estimateDisp(tmm, design , tagwise=TRUE, robust=TRUE)
+```
+
+# Mean-Variance Plot
+```{r}
+# We can see how well dispersion parameters fit the data by plotting the mean-variance relationship.
+# the raw variances of the counts (grey dots)
+# the variances using the tagwise dispersions (light blue dots)
+# the variances using the common dispersion (solid blue line)
+# the variance = mean a.k.a. poisson variance (solid black line)
+par(mfrow = c(1,1))
+meanVarPlot <- plotMeanVar(disp , show.raw.vars=TRUE , show.tagwise.vars=TRUE , show.binned.common.disp.vars=FALSE , show.ave.raw.vars=FALSE , NBline = TRUE , nbins = 100 , pch = 16 , xlab ="Mean Expression (Log10 Scale)" , ylab = "Variance (Log10 Scale)" , main = "Mean-Variance Plot" )
+```
+
+# The BCV is the square root of the negative binomial dispersion. This function displays the common, trended and genewise BCV estimates.
+```{r}
+# plotBCV() plots the genewise biological coefficient of variation (BCV) against gene abundance (in log2 counts per million)
+# plotBCV() shows the root-estimate, i.e., the biological coefficient of variation for each gene
+# In general, the trend in the NB dispersions should decrease smoothly with increasing abundance.
+# This is because the expression of high-abundance genes is expected to be more stable than that of low-abundance genes.
+# Any substantial increase at high abundances may be indicative of batch effects or trended biases.
+plotBCV(disp)
+```
+
+
+# Reading the data# Generalized linear models (GLMs) specify probability distributions according to their mean-variance relationship
+```{r}
+# Fit a negative binomial generalized log-linear model to count data
+# glmFit() fits a negative binomial generalized log-linear model to the read counts for each gene
+# glmFit() conducts genewise statistical tests for a given coefficient or coefficient contrast.
+# The negative binomial dispersions dispersion supplied to glmFit() must be either trended or common dispersions.
+# Setting robust=TRUE in glmQLFit causes glmQLFit to estimate a vector of df.prior values, with lower values for outlier genes and larger values for the main body of genes.
+fit <- glmFit(disp , design)
+head(fit$coefficients)
+```
+
+```{r}
+col.cell <- c("purple","orange", "blue", "red", "green", "black")[as.factor(HibDesign1[,1])]
+# plotRLE creates relative log expression (RLE) plot, initially proposed to measure the overall quality of a dataset 
+# plotRLE can also be used to visualize the presence of unwanted batch effects in the data
+par(mfrow=c(1,3))
+plotRLE(as.matrix(countData), outline=FALSE, ylim=c(-4, 4), col=col.cell)
+plotRLE(set2$normalizedCounts, outline=FALSE, ylim=c(-2, 2), col=col.cell)
+plotRLE(as.matrix(tpm), outline=FALSE, ylim=c(-2, 2), col=col.cell)
+```
+
+
+
+# The contrast of interest can be specified using the makeContrasts function
+```{r}
+# genes are detected that are DE between groups
+# This is done by defining the null hypothesis as S02 - S01 = 0.
+# For example, setting S02 - S01 in makeContrasts would return positive log-fold changes for genes that are upregulated in the sample T05h.
+design.pairs <-   function(levels) {
+  n <- length(levels)
+  design <- matrix(0,n,choose(n,2))
+  rownames(design) <- levels
+  colnames(design) <- 1:choose(n,2)
+  k <- 0
+  for (i in 1:(n-1))
+    for (j in (i+1):n) {
+      k <- k+1
+      design[j,k] <- 1
+      design[i,k] <- -1
+      colnames(design)[k] <- paste(levels[j],"-",levels[i],sep="")
+    }
+  design
+}
+
+con = design.pairs(c("S01", "S02", "S03", "S04", "S05", "S06", "W"))
+
+nSets = 15
+contrasts = vector(mode = "list", length = nSets)
+con1 = contrasts[[1]] = makeContrasts(con[,1], levels=design) #makeContrasts(c(-1,1,0,0,0,0), levels=design)
+con2 = contrasts[[2]] = makeContrasts(con[,2], levels=design) #makeContrasts(c(-1,0,1,0,0,0), levels=design)
+con3 = contrasts[[3]] = makeContrasts(con[,3], levels=design) #makeContrasts(c(-1,0,0,1,0,0), levels=design)
+con4 = contrasts[[4]] = makeContrasts(con[,4], levels=design) #makeContrasts(c(-1,0,0,0,1,0), levels=design)
+con5 = contrasts[[5]] = makeContrasts(con[,5], levels=design) #makeContrasts(c(-1,0,0,0,0,1), levels=design)
+con6 = contrasts[[6]] = makeContrasts(con[,7], levels=design) #makeContrasts(c(0,-1,1,0,0,0), levels=design)
+con7 = contrasts[[7]] = makeContrasts(con[,8], levels=design) #makeContrasts(c(0,-1,0,1,0,0), levels=design)
+con8 = contrasts[[8]] = makeContrasts(con[,9], levels=design) #makeContrasts(c(0,-1,0,0,1,0), levels=design)
+con9 = contrasts[[9]] = makeContrasts(con[,10], levels=design) #makeContrasts(c(0,-1,0,0,0,1), levels=design)
+con10 = contrasts[[10]] = makeContrasts(con[,12], levels=design) #makeContrasts(c(0,0,-1,1,0,0), levels=design)
+con11 = contrasts[[11]] = makeContrasts(con[,13], levels=design) #makeContrasts(c(0,0,-1,0,1,0), levels=design)
+con12 = contrasts[[12]] = makeContrasts(con[,14], levels=design) #makeContrasts(c(0,0,-1,0,0,1), levels=design)
+con13 = contrasts[[13]] = makeContrasts(con[,16], levels=design) #makeContrasts(c(0,0,0,-1,1,0), levels=design)
+con14 = contrasts[[14]] = makeContrasts(con[,17], levels=design) #makeContrasts(c(0,0,0,-1,0,1), levels=design)
+con15 = contrasts[[15]] = makeContrasts(con[,19], levels=design) #makeContrasts(c(0,0,0,0,-1,1), levels=design)
+```
+
+# glmLRT() conducts likelihood ratio tests for one or more coefficients in the linear model. 
+```{r}
+# If coef is used, the null hypothesis is that all the coefficients indicated by coef are equal to zero. 
+# If contrast is non-null, then the null hypothesis is that the specified contrasts of the coefficients are equal to zero.
+# For example, a contrast of c(0,1,-1), assuming there are three coefficients, would test the hypothesis that the second and third coefficients are equal.
+# LRT = Likelihood Ratio Test
+LRT = vector(mode = "list", length = nSets)
+for (i in 1:nSets){LRT[[i]]=glmLRT(fit , contrast = contrasts[[i]])}
+```
+
+# topTags() extracts the top DE tags in a data frame for a given pair of groups
+```{r}
+# adjusts the raw p-values using the False Discovery Rate (FDR) correction,
+# ranks by p-value or absolute log-fold change
+topDE = vector(mode = "list", length = nSets)
+for (i in 1:nSets){topDE[[i]]= topTags(LRT[[i]] , n=nrow(LRT[[i]]), sort.by = "p.value")}
+
+subtopDE = vector(mode = "list", length = nSets)
+for (i in 1:nSets){subtopDE[[i]]= topDE[[i]]$table[which(abs(topDE[[i]]$table$logFC)>LFC),]}
+
+fdrsubtopDE = vector(mode = "list", length = nSets)
+for (i in 1:nSets){fdrsubtopDE[[i]]= subtopDE[[i]][which(subtopDE[[i]]$FDR<THRESHOLD),]}
+```
+
+# Find equally expressed gene
+```{r}
+
+EEgenes_edgeR=data.frame(S01xS02=topDE[[1]]$table$logFC, S01xS03=topDE[[2]]$table$logFC, S01xS04=topDE[[3]]$table$logFC, S01xS05=topDE[[4]]$table$logFC, S01xS06=topDE[[5]]$table$logFC, S02xS03=topDE[[6]]$table$logFC, S02xS04=topDE[[7]]$table$logFC, S02xS05=topDE[[8]]$table$logFC, S02xS06=topDE[[9]]$table$logFC, S03xS04=topDE[[10]]$table$logFC, S03xS05=topDE[[11]]$table$logFC, S03xS06=topDE[[12]]$table$logFC, S04xS05=topDE[[13]]$table$logFC, S04xS06=topDE[[14]]$table$logFC, S05xS06=topDE[[15]]$table$logFC)
+
+rownames(EEgenes_edgeR) = rownames(topDE[[1]])
+
+EEgenes_edgeR$LFC_sum <- rowSums(EEgenes_edgeR)
+
+EEgenes_edgeR = EEgenes_edgeR[head(sort(EEgenes_edgeR$LFC_sum,decreasing=FALSE), n = 100),]
+EEgenes_edgeR = EEgenes_edgeR[order(EEgenes_edgeR$LFC_sum),]
+
+EEgenes_edgeR = EEgenes_edgeR[EEgenes_edgeR$LFC_sum<0.01,]
+EEgenes_edgeR = EEgenes_edgeR[EEgenes_edgeR$LFC_sum>-0.01,]
+EEgenes_edgeR = EEgenes_edgeR[order(EEgenes_edgeR$LFC_sum),]
+
+View(EEgenes_edgeR)
+#EEgenes_edgeR.1 = data.frame(LFC_sum = EEgenes_edgeR$LFC_sum, (d$counts*(10^6)/colSums(d$counts))[rownames(EEgenes_edgeR),])
+#EEgenes_edgeR.1
+```
+
+# ANOVA from Flavio Lichtenstein
+```{r, fig.width=7, fig.height=14}
+filter.anova <- function(df, groups, verbose=T) {
+ if (verbose) cat("Calculating ANOVA ...\n")
+ fgroups = factor(groups)
+ # row = counts.per.million[1,]
+ # for (i in 1:nrow(counts.per.million)) {
+ #   row = counts.per.million[i,]
+ #   df = data.frame(reads = as.numeric(row), group=groups )
+ #   fit = lm(reads ~ fgroups, data = df)
+ #   t = anova(fit)
+ #   cat(paste(t$`Pr(>F)`[1], "\n"))
+
+ #  }
+
+testList = apply(as.matrix(df),1,function(row) {
+   df = data.frame(reads = as.numeric(row), group=groups )
+   fit = lm(reads ~ fgroups, data = df)
+   anova(fit)$`Pr(>F)`[1]
+ })
+ return (testList)
+}
+
+df = as.data.frame(countData)
+groups = as.factor(colnames(df))
+
+allgenesvar = filter.anova(df = df, groups = groups)
+
+allgenesvar1 = sort(allgenesvar, decreasing = FALSE)
+
+TopVAr4WGCNA = allgenesvar1[1:12000]
+TopVAr4WGCNA <-   rownames(countData)[which(rownames(countData) %in% rownames(top)[1:4000])]
+
+newcountData = countData[names(TopVAr4WGCNA),]
+```
+
+
+# decideTestsDGE() classifies a series of related differential expression statistics as up, down or not significant
+```{r}
+# The total number of DE genes in each direction at a FDR of 5% can be examined with decideTestsDGE
+# total number of genes significantly up-regulated or down-regulated at 5% FDR
+# you can't use decideTestsDGE() to count the number of DE genes when doing a test for multiple contrasts at once
+is.de = vector(mode = "list", length = nSets)
+for (i in 1:nSets){is.de[[i]] = decideTestsDGE(LRT[[i]] , p.value=0.05)}
+```
+
+# Up/Down regulated summary for genewise results
+```{r}
+# the adjusted p-values are used here
+DEGsummary = vector(mode = "list", length = nSets)
+for (i in 1:nSets){DEGsummary[[i]] = summary(is.de[[i]])}
+```
+
+# which genes are DE:
+```{r}
+isDE = vector(mode = "list", length = nSets)
+for (i in 1:nSets){isDE[[i]] = as.logical(is.de[[i]])}
+
+edgeRDEnames = vector(mode = "list", length = nSets)
+for (i in 1:nSets){edgeRDEnames[[i]] = rownames(fdrsubtopDE[[i]])}
+
+#DEnames = vector(mode = "list", length = nSets)
+#for (i in 1:nSets){DEnames[[i]] = rownames(LRT[[i]])[isDE[[i]]]}
+```
+
+
+# Visualizing Results
+```{r}
+# The differential expression test results can be visualized using a smear plot
+# The log-fold change for each gene is plotted against the average abundance (logCPM)
+# Significantly DE genes at a FDR of 5% are highlighted in red.
+# MA plot that shows the relationship between concentration and fold-change across the genes
+# The differentially expressed genes are colored red 
+# the non-differentially expressed are colored black
+# The orange dots represent genes in which the counts were zero in all samples of one of the groups
+# The blue line is added at a log-FC of 2 to represent a level for biological significance
+
+# We want to highlight the significant genes. We can get this from decideTests.
+par(mfrow=c(3,5))
+par(mar=c(1,1,1,1))
+for (i in 1:nSets){plotMD(LRT[[i]], status=is.de[[i]][,1])}
+```
+
+
+#DESeq2
+# DESeq/DESeq2 package for statistical analyses on Differetial Expression
+```{r, message=FALSE}
+library("DESeq2")
+```
+
+# Create the design matrix
+```{r}
+HibDesign2 = data.frame(row.names = colnames( countData ), condition = rep(c("S01", "S02", "S03", "S04", "S05", "S06"), each = 4),  set2$W)
+design = model.matrix(~group+set2$W, data = HibDesign2)
+colnames(design) <- c(levels(group), "W")
+coldata <- data.frame(row.names=colnames(countData), HibDesign2)
+```
+
+# We examine the count matrix and column data to see if they are consisent
+```{r}
+head(countData)
+head(coldata)
+```
+
+# It is critical that the columns of the count matrix and the rows of the column data (information about samples) are in the same order
+```{r}
+all(rownames(coldata) %in% colnames(countData))
+
+countData <- countData[, rownames(coldata)]
+all(rownames(coldata) == colnames(countData))
+```
+
+# Count matrix input
+```{r}
+dds = DESeqDataSetFromMatrix(countData = countData, colData = coldata , design= ~ W_1 + condition)
+
+DESeq2factors <- estimateSizeFactors(dds)
+```
+
+# Pre-Filtering
+```{r}
+# by removing rows in which there are no reads or nearly no reads, we reduce the memory size of the dds data object
+# we increase the speed of the transformation and testing functions within DESeq2
+dds <- dds[ rowSums(counts(dds)) > 1, ]
+```
+
+```{r}
+col.cell <- c("purple","orange", "blue", "red", "green", "black")[as.factor(HibDesign1[,1])]
+# plotRLE creates relative log expression (RLE) plot, initially proposed to measure the overall quality of a dataset 
+# plotRLE can also be used to visualize the presence of unwanted batch effects in the data
+par(mfrow=c(1,3))
+plotRLE(as.matrix(countData), outline=FALSE, ylim=c(-4, 4), col=col.cell)
+plotRLE(set2$normalizedCounts, outline=FALSE, ylim=c(-2, 2), col=col.cell)
+plotRLE(as.matrix(counts(DESeq2factors, normalized=TRUE)), outline=FALSE, ylim=c(-2, 2), col=col.cell)
+```
+
+
+# Differential expression analysis
+```{r, message=FALSE}
+# the Wald test, where we use the estimated standard error of a log2 fold change to test if it is equal to zero
+# The LRT examines two models for the counts, a full model with a certain number of terms and a reduced model, in which some of the terms of the full model are removed
+# The LRT test determines if the increased likelihood of the data using the extra terms in the full model is more than expected if those extra terms are truly zero
+DESeq <- DESeq(dds)
+
+DESeqRLT <- DESeq(dds, test="LRT", reduced = ~ W_1)
+```
+
+# Results
+```{r}
+
+# results() extracts a result table from a DESeq analysis giving base means across samples, log2 fold changes, standard errors, test statistics, p-values and adjusted p-values
+
+# contrast specifies what comparison to extract from the object to build a results table : 
+# a character vector with exactly three elements: the name of a factor in the design formula, the name of the numerator level for the fold change, and the name of the denominator level for the fold change (simplest case)
+
+nSets = 15
+DESeqresults = vector(mode = "list", length = nSets)
+DESeqresults[[1]] = results(DESeq, contrast=c("condition", "S02", "S01"))
+DESeqresults[[2]] = results(DESeq, contrast=c("condition", "S03", "S01"))
+DESeqresults[[3]] = results(DESeq, contrast=c("condition", "S04", "S01"))
+DESeqresults[[4]] = results(DESeq, contrast=c("condition", "S05", "S01"))
+DESeqresults[[5]] = results(DESeq, contrast=c("condition", "S06", "S01"))
+DESeqresults[[6]] = results(DESeq, contrast=c("condition", "S03", "S02"))
+DESeqresults[[7]] = results(DESeq, contrast=c("condition", "S04", "S02"))
+DESeqresults[[8]] = results(DESeq, contrast=c("condition", "S05", "S02"))
+DESeqresults[[9]] = results(DESeq, contrast=c("condition", "S06", "S02"))
+DESeqresults[[10]] = results(DESeq, contrast=c("condition", "S04", "S03"))
+DESeqresults[[11]] = results(DESeq, contrast=c("condition", "S05", "S03"))
+DESeqresults[[12]] = results(DESeq, contrast=c("condition", "S06", "S03"))
+DESeqresults[[13]] = results(DESeq, contrast=c("condition", "S05", "S04"))
+DESeqresults[[14]] = results(DESeq, contrast=c("condition", "S06", "S04"))
+DESeqresults[[15]] = results(DESeq, contrast=c("condition", "S06", "S05"))
+
+DESeqresultsRLT = vector(mode = "list", length = nSets)
+DESeqresultsRLT[[1]] = results(DESeqRLT, contrast=c("condition", "S02", "S01"))
+DESeqresultsRLT[[2]] = results(DESeqRLT, contrast=c("condition", "S03", "S01"))
+DESeqresultsRLT[[3]] = results(DESeqRLT, contrast=c("condition", "S04", "S01"))
+DESeqresultsRLT[[4]] = results(DESeqRLT, contrast=c("condition", "S05", "S01"))
+DESeqresultsRLT[[5]] = results(DESeqRLT, contrast=c("condition", "S06", "S01"))
+DESeqresultsRLT[[6]] = results(DESeqRLT, contrast=c("condition", "S03", "S02"))
+DESeqresultsRLT[[7]] = results(DESeqRLT, contrast=c("condition", "S04", "S02"))
+DESeqresultsRLT[[8]] = results(DESeqRLT, contrast=c("condition", "S05", "S02"))
+DESeqresultsRLT[[9]] = results(DESeqRLT, contrast=c("condition", "S06", "S02"))
+DESeqresultsRLT[[10]] = results(DESeqRLT, contrast=c("condition", "S04", "S03"))
+DESeqresultsRLT[[11]] = results(DESeqRLT, contrast=c("condition", "S05", "S03"))
+DESeqresultsRLT[[12]] = results(DESeqRLT, contrast=c("condition", "S06", "S03"))
+DESeqresultsRLT[[13]] = results(DESeqRLT, contrast=c("condition", "S05", "S04"))
+DESeqresultsRLT[[14]] = results(DESeqRLT, contrast=c("condition", "S06", "S05"))
+DESeqresultsRLT[[15]] = results(DESeqRLT, contrast=c("condition", "S06", "S05"))
+```
+
+# We can order our results table by the smallest adjusted p value:
+```{r}
+resOrdered = vector(mode = "list", length = nSets)
+for (i in 1:nSets){resOrdered[[i]] = DESeqresults[[i]][order(DESeqresults[[i]]$padj),]}
+
+resRLTOrdered = vector(mode = "list", length = nSets)
+for (i in 1:nSets){resRLTOrdered[[i]] = DESeqresultsRLT[[i]][order(DESeqresultsRLT[[i]]$padj),]}
+
+resOrdered.sig = vector(mode = "list", length = nSets)
+for (i in 1:nSets){resOrdered.sig[[i]] = subset(resOrdered[[i]], resOrdered[[i]]$padj<THRESHOLD)}
+
+LFCresOrdered.sig = vector(mode = "list", length = nSets)
+for (i in 1:nSets){LFCresOrdered.sig[[i]] = subset(resOrdered.sig[[i]], abs(resOrdered.sig[[i]]$log2FoldChange)>LFC)}
+
+DEnamesDESEq2 = vector(mode = "list", length = nSets)
+for (i in 1:nSets){DEnamesDESEq2[[i]] = rownames(LFCresOrdered.sig[[i]])}
+
+resRLTOrdered.sig = vector(mode = "list", length = nSets)
+for (i in 1:nSets){resRLTOrdered.sig[[i]] = subset(resRLTOrdered[[i]], which(resRLTOrdered[[i]]$padj<THRESHOLD))}
+
+DEnamesDESEq2RLT = vector(mode = "list", length = nSets)
+for (i in 1:nSets){DEnamesDESEq2RLT[[i]] = rownames(resRLTOrdered.sig[[i]])}
+```
+
+# Find equally expressed genes
+```{r}
+EEgenes_DESeq2=data.frame(S01xS02=DESeqresults[[1]]$log2FoldChange, S01xS03=DESeqresults[[2]]$log2FoldChange, S01xS04=DESeqresults[[3]]$log2FoldChange, S01xS05=DESeqresults[[4]]$log2FoldChange, S01xS06=DESeqresults[[5]]$log2FoldChange, S02xS03=DESeqresults[[6]]$log2FoldChange, S02xS04=DESeqresults[[7]]$log2FoldChange, S02xS05=DESeqresults[[8]]$log2FoldChange, S02xS06=DESeqresults[[9]]$log2FoldChange, S03xS04=DESeqresults[[10]]$log2FoldChange, S03xS05=DESeqresults[[11]]$log2FoldChange, S03xS06=DESeqresults[[12]]$log2FoldChange, S04xS05=DESeqresults[[13]]$log2FoldChange, S04xS06=DESeqresults[[14]]$log2FoldChange, S05xS06=DESeqresults[[15]]$log2FoldChange)
+
+rownames(EEgenes_DESeq2) = rownames(DESeqresults[[1]])
+
+EEgenes_DESeq2$LFC_sum <- rowSums(EEgenes_DESeq2)
+EEgenes_DESeq2 = EEgenes_DESeq2[EEgenes_DESeq2$LFC_sum<1,]
+EEgenes_DESeq2 = EEgenes_DESeq2[EEgenes_DESeq2$LFC_sum>-1,]
+EEgenes_DESeq2 = EEgenes_DESeq2[order(EEgenes_DESeq2$LFC_sum),]
+
+EEgenes_DESeq2.1 = data.frame(LFC_sum = EEgenes_DESeq2$LFC_sum, (counts(dds)*(10^6)/colSums(counts(dds)))[rownames(EEgenes_DESeq2),])
+EEgenes_DESeq2.1 = round(EEgenes_DESeq2.1, 3)
+
+#write.csv(EEgenes_DESeq2.1, "EquallyExpressed_DESeq2.csv")
+```
+
+# Summarize some basic tallies
+```{r}
+DESeq2summary = vector(mode = "list", length = nSets)
+for (i in 1:nSets){DESeq2summary[[i]] = summary(resOrdered[[i]])}
+
+DESeq2RLTsummary = vector(mode = "list", length = nSets)
+for (i in 1:nSets){DESeq2RLTsummary[[i]] = summary(resRLTOrdered[[i]])}
+```
+
+# How many adjusted p-values were less than 0.1?
+```{r}
+DESeq2sum = vector(mode = "list", length = nSets)
+for (i in 1:nSets){DESeq2sum[[i]] = sum(resOrdered[[i]]$padj < 0.01, na.rm=TRUE)}
+
+DESeq2RLTsum = vector(mode = "list", length = nSets)
+for (i in 1:nSets){DESeq2RLTsum[[i]] = sum(resRLTOrdered[[i]]$padj < 0.01, na.rm=TRUE)}
+```
+
+
+
+
+
+
+
+
+# limma-Voom
+```{r}
+# Obs: Never enter RPKM or FPKM values to edgeR in place of read counts.
+library("limma")
+```
+
+# Differential expression analysis
+```{r, message=FALSE}
+HibDesign2 = data.frame(row.names = colnames( countData ), condition = HibDesign$condition, set2$W)
+design = model.matrix(~0+group+set2$W, data = HibDesign2)
+colnames(design) <- c(levels(group), "W")
+```
+
+# Reading the data
+```{r}
+d <- DGEList(counts=countData , lib.size = colSums(countData), group=group)
+rownames(d$counts) = rownames(countData)
+```
+
+# Design comparisons
+```{r}
+contr.matrix <- makeContrasts(con1 = S02 - S01,
+                              con2 = S03 - S01,
+                              con3 = S04 - S01,
+                              con4 = S05 - S01,
+                              con5 = S06 - S01,
+                              con6 = S03 - S02,
+                              con7 = S04 - S02,
+                              con8 = S05 - S02,
+                              con9 = S06 - S02,
+                              con10 = S04 - S03,
+                              con11 = S05 - S03,
+                              con12 = S06 - S03,
+                              con13 = S05 - S04,
+                              con14 = S06 - S04,
+                              con15 = S06 - S05,
+                              levels = colnames(design))
+```
+
+# Pre-filtering
+```{r}
+# Setting CPM threshold
+# As a general rule, a good threshold can be chosen by identifying the CPM that corresponds to a count of 10
+# Direct counts do not account for differences in library sizes between samples.
+myCPM = cpm(d)
+cpm(1, mean(d$samples$lib.size))
+CPMthershold = round(cpm(1, mean(d$samples$lib.size)), digits=3)
+```
+
+# Filter low expression tags
+```{r}
+# keep only those genes that have at least CPMthershold read per million in at least 4 samples
+keep <- rowSums(cpm(d)> as.vector(CPMthershold)) >= 4
+filtered <- d[keep,]
+summary(keep)
+dim(filtered )
+```
+
+# Normalization
+```{r}
+tmm <- calcNormFactors(filtered , "TMM") 
+tmm$samples$norm.factors
+```
+
+# In limma, linear modelling is carried out on the log-CPM values which are assumed to be normally distributed and the mean-variance relationship is accommodated using precision weights calculated by the voom function.
+```{r}
+# Voom (variance modeling at the observational level)
+# When the library sizes are quite variable between samples, then the voom approach is theoretically more powerful than limma-trend
+# the voom transformation is applied to the normalized and filtered DGEList 
+# The voom transformation uses the experiment design matrix, and produces an EList object
+# When operating on a DGEList-object, voom converts raw counts to log-CPM values by automatically extracting library sizes and normalisation factors stored in the object
+v <- voom(tmm, design, plot=TRUE)
+```
+
+# After this, the usual limma pipelines for differential expression can be applied
+```{r}
+# Estimate the fold changes and standard errors by fitting a linear model for each gene
+vfit <- lmFit(v, design)
+
+nSets = 15
+vfit1 = vector(mode = "list", length = nSets)
+for (i in 1:nSets){vfit1[[i]] <- contrasts.fit(vfit, contrasts=contr.matrix[,i])}
+
+#vfit1 <- contrasts.fit(vfit, contrasts=contr.matrix)
+```
+
+# Apply empirical Bayes smoothing to the standard errors
+```{r}
+# lfc -> the minimum log2-fold-change that is considered scientifically meaningful
+nSets = 15
+efit = vector(mode = "list", length = nSets)
+for (i in 1:nSets){efit[[i]] <- eBayes(vfit1[[i]], robust=TRUE)}
+
+#efit <- eBayes(vfit1, robust=TRUE)
+topgenes = vector(mode = "list", length = nSets)
+for (i in 1:nSets){topgenes[[i]] <- toptable(efit[[i]], adjust="fdr", lfc=2, p.value=0.01, number=Inf)}
+```
+
+# Find equally expressed genes
+```{r}
+
+#fitdf = as.data.frame(efit[[1]])
+
+#EEgenes = vector(mode = "list", length = nSets)
+#for (i in 1:nSets){EEgenes[[i]] <- toptable(efit[[i]], adjust="fdr", lfc=0.00001, p.value=0.999, number=Inf)}
+
+#EEgenes_limma = matrix(, nrow = nrow(EEgenes[[1]]), ncol = 1)
+#rownames(EEgenes_limma) = rownames(EEgenes[[1]])
+#for (i in 1:nrow(EEgenes[[1]])){
+#  EEgenes_limma[i,1] = sum(EEgenes[[1]]$logFC[i], EEgenes[[2]]$logFC[i], EEgenes[[3]]$logFC[i], EEgenes[[4]]$logFC[i], EEgenes[[5]]$logFC[i], EEgenes[[6]]$logFC[i], EEgenes[[7]]$logFC[i], EEgenes[[8]]$logFC[i], EEgenes[[9]]$logFC[i], EEgenes[[10]]$logFC[i], EEgenes[[11]]$logFC[i], EEgenes[[12]]$logFC[i], EEgenes[[13]]$logFC[i], EEgenes[[14]]$logFC[i], EEgenes[[15]]$logFC[i])
+#}
+
+#View(EEgenes_limma)
+
+#EEgenes_limma = as.matrix(EEgenes_limma[EEgenes_limma < 1,])
+#EEgenes_limma = as.matrix(EEgenes_limma[EEgenes_limma > -1,])
+#EEgenes_limma = as.matrix(EEgenes_limma[order(EEgenes_limma[,1]),])
+```
+
+# Examining the number of DE genes
+```{r}
+# the number of significantly up- and down-regulated genes can be summarised in a table
+dt = vector(mode = "list", length = nSets)
+for (i in 1:nSets){dt[[i]] <- decideTests(efit[[i]])}
+
+#dt = decideTests(efit)
+
+de.common = vector(mode = "list", length = nSets)
+for (i in 1:nSets){de.common[[i]] <-which(dt[[i]][,1]!=0)}
+
+#de.common <- which(dt[,1]!=0 & dt[,2]!=0)
+
+
+#length(de.common)
+#head(rownames(efit$p.value)[de.common], n=20)
+#summary(decideTests(efit[[15]]))
+```
+
+# Which genes are DE
+```{r}
+topgenes = vector(mode = "list", length = nSets)
+for (i in 1:nSets){topgenes[[i]] <- toptable(efit[[i]], adjust="fdr", lfc=2, p.value=0.01, number=Inf)}
+
+#reslimma = vector(mode = "list", length = nSets)
+#for (i in 1:nSets){reslimma[[i]]=which(dt[,i]!=0)} 
+```
+
+# DE gene names
+```{r}
+DEnameslimma = vector(mode = "list", length = nSets)
+for (i in 1:nSets){DEnameslimma[[i]]=rownames(topgenes[[i]])}
+
+#for (i in 1:nSets){DEnameslimma[[i]]=rownames(efit)[reslimma[[i]]]}
+```
+
+
+
+
+
+
+# Insersection
+```{r, message=FALSE}
+THRESHOLD <- 0.01
+
+TrueDE = vector(mode = "list", length = nSets)
+for (i in 1:nSets){TrueDE[[i]] = intersect(intersect(DEnamesDESEq2[[i]], edgeRDEnames[[i]]), DEnameslimma[[i]])}
+```
+
+TrueDE_dataframe
+```{r}
+TrueDE_dataframe =  vector(mode = "list", length = nSets)
+for (i in 1:nSets){TrueDE_dataframe[[i]] = as.data.frame(TrueDE[[i]])}
+for (i in 1:nSets){TrueDE_dataframe[[i]]$edgeRLFC = fdrsubtopDE[[i]][TrueDE[[i]],]$logFC}
+for (i in 1:nSets){TrueDE_dataframe[[i]]$edge_padj = fdrsubtopDE[[i]][TrueDE[[i]],]$FDR}
+for (i in 1:nSets){TrueDE_dataframe[[i]]$DESeq2LFC = LFCresOrdered.sig[[i]][TrueDE[[i]],]$log2FoldChange}
+for (i in 1:nSets){TrueDE_dataframe[[i]]$DESeq2_padj = LFCresOrdered.sig[[i]][TrueDE[[i]],]$padj}
+for (i in 1:nSets){TrueDE_dataframe[[i]]$limmaLFC = topgenes[[i]][TrueDE[[i]],]$logFC}
+for (i in 1:nSets){TrueDE_dataframe[[i]]$limma_padj = topgenes[[i]][TrueDE[[i]],]$adj.P.Val}
+
+TrueDE_dataframe
+```
+
+# Comparisons
+```{r}
+main = vector(mode = "list", length = nSets)
+main[[1]] = "S01xS02"
+main[[2]] = "S01xS03"
+main[[3]] = "S01xS04"
+main[[4]] = "S01xS05"
+main[[5]] = "S01xS06"
+main[[6]] = "S02xS03"
+main[[7]] = "S02xS04"
+main[[8]] = "S02xS05"
+main[[9]] = "S02xS06"
+main[[10]] = "S03xS04"
+main[[11]] = "S03xS05"
+main[[12]] = "S03xS06"
+main[[13]] = "S04xS05"
+main[[14]] = "S04xS06"
+main[[15]] = "S05xS06"
+```
+
+```{r, fig.width=10, fig.height=7}
+library("clusterProfiler")
+#comparecluster
+#data(gcSample)
+#xx = compareCluster(gcSample, fun="enrichKEGG", organism="hsa", pvalueCutoff=0.1)
+
+TrueDE_df = list(S01xS02 = TrueDE_dataframe[[1]][,1], S01xS03 = TrueDE_dataframe[[2]][,1], S01xS04 = TrueDE_dataframe[[3]][,1], S01xS05 = TrueDE_dataframe[[4]][,1], S01xS06 = TrueDE_dataframe[[5]][,1], S02xS03 = TrueDE_dataframe[[6]][,1], S02xS04 = TrueDE_dataframe[[7]][,1], S02xS05 = TrueDE_dataframe[[8]][,1], S02xS06 = TrueDE_dataframe[[9]][,1], S03xS04 = TrueDE_dataframe[[10]][,1], S03xS05 = TrueDE_dataframe[[11]][,1], S03xS06 = TrueDE_dataframe[[12]][,1], S04xS05 = TrueDE_dataframe[[13]][,1], S04xS06 = TrueDE_dataframe[[14]][,1], S05xS06 = TrueDE_dataframe[[15]][,1])
+
+mar=c(5.1,4.1,4.1,2.1)
+
+yy = compareCluster(TrueDE_df, fun="enrichKEGG", organism="hiu", pvalueCutoff=0.05)
+
+plot(yy, type="dot")
+
+```
+
+# kegga
+```{r, message=FALSE}
+DEKegg = vector(mode = "list", length = nSets)
+for (i in 1:nSets){DEKegg[[i]] =kegga(TrueDE_dataframe[[i]][,1], FDR = 0.01, species.KEGG = "hiu")}
+
+topKEGGdown = vector(mode = "list", length = nSets)
+for (i in 1:nSets){topKEGGdown[[i]] = topKEGG(DEKegg[[i]] , n=10)}
+
+topKEGGup = vector(mode = "list", length = nSets)
+for (i in 1:nSets){topKEGGup[[i]] = topKEGG(DEKegg[[i]] , n=10)}
+```
+
+
+
+
+# Venn Diagram
+```{r, message=FALSE}
+library(gplots)
+VennDiagram = vector(mode = "list", length = nSets)
+for (i in 1:15){VennDiagram[[i]] = venn(list(DEnamesDESEq2[[i]], edgeRDEnames[[i]], DEnameslimma[[i]]), names=c("DESeq2", "edgeR", "limma-VOOM"))}
+```
+
+```{r, message=FALSE}
+library("colorfulVennPlot")
+labels <- c("DESeq2", "edgeR", "limma-VOOM")
+y=VennDiagram[[1]][,1][2:8]
+names(y) <- c("001","010","011","100","101","110","111")
+plotVenn3d(y, labels,  Colors=c("red","yellow","orange","lightblue","purple","lightgreen","grey"), Title=main[[1]])
+
+y=VennDiagram[[6]][,1][2:8]
+names(y) <- c("001","010","011","100","101","110","111")
+plotVenn3d(y, labels,  Colors=c("red","yellow","orange","lightblue","purple","lightgreen","grey"), Title=main[[6]])
+
+y=VennDiagram[[10]][,1][2:8]
+names(y) <- c("001","010","011","100","101","110","111")
+plotVenn3d(y, labels,  Colors=c("red","yellow","orange","lightblue","purple","lightgreen","grey"), Title=main[[10]])
+
+y=VennDiagram[[13]][,1][2:8]
+names(y) <- c("001","010","011","100","101","110","111")
+plotVenn3d(y, labels,  Colors=c("red","yellow","orange","lightblue","purple","lightgreen","grey"), Title=main[[13]])
+
+y=VennDiagram[[15]][,1][2:8]
+names(y) <- c("001","010","011","100","101","110","111")
+plotVenn3d(y, labels,  Colors=c("red","yellow","orange","lightblue","purple","lightgreen","grey"), Title=main[[15]])
+```
+
+
+```{r, message=FALSE}
+library("VennDiagram")
+
+# fill -> A vector (length 2) giving the colours of the circles' areas
+# alpha -> A vector (length 2) giving the alpha transparency of the circles' areas
+Venn.Plot = vector(mode = "list", length = nSets)
+for (i in 1:15){Venn.Plot[[i]] = venn.diagram(list(DEnamesDESEq2[[i]], edgeRDEnames[[i]], DEnameslimma[[i]]), filename=NULL, fill=c("green", "blue", "red"), alpha=rep(0.5,3), cex = 2, cat.fontface=4, category.names=c("DESeq2", "edgeR", "limma-VOOM"), main = main[[i]])}
+# grid.newpage()
+# for (i in 1:15){Venn.Plot[[i]] = draw.triple.venn(area1 = length(DEnamesDESEq2[[i]]), area2 = length(edgeRDEnames[[i]]), area3 = length(DEnameslimma[[i]]), n12 = length(intersect(DEnamesDESEq2[[i]], edgeRDEnames[[i]])), n23 = length(intersect(edgeRDEnames[[i]], DEnameslimma[[i]])), n13 = length(intersect(DEnamesDESEq2[[i]], DEnameslimma[[i]])), n123 = length(intersect(DEnamesDESEq2[[i]], intersect(edgeRDEnames[[i]], DEnameslimma[[i]]))), filename=NULL, fill=c("green", "blue", "red"), alpha=rep(0.5,3), cex = 2, cat.fontface=4, category.names=c("DESeq2", "edgeR", "limma-VOOM"), main = main[[i]])}
+
+grid.draw(Venn.Plot[[1]])
+```
+
+
+
