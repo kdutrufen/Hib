@@ -1,0 +1,237 @@
+---
+title: "Trinity-salmon_from Rsubread"
+author: "Carlos Eduardo Madureira Trufen"
+date: "3 de julho de 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# This code was used to assemble de novo all reads which failed to align to reference genome (Hib) through Rsubread function align()
+
+# Set working directory
+```{r, message=FALSE}
+setwd("~/Dropbox/Mestrado")
+```
+
+# Retrieve unmapped reads form .Bam files
+```{r, eval=F, echo=T}
+# view -> With no options or regions specified, prints all alignments in the specified input alignment file (in SAM, BAM, or CRAM format) to standard output in SAM format (with no header). 
+# view -> You may specify one or more space-separated region specifications after the input filename to restrict output to only those alignments which overlap the specified region(s). Use of region specifications requires a coordinate-sorted and indexed input file (in BAM or CRAM format). 
+# -b -> The -b, -C, -1, -u, -h, -H, and -c options change the output format from the default of headerless SAM, and the -o and -U options set the output file name(s). 
+# -b -> Output in the BAM format
+# -f -> The -L, -r, -R, -q, -l, -m, -f, and -F options filter the alignments that will be included in the output to only those alignments that match certain criteria.
+# -f INT -> Only output alignments with all bits set in INT present in the FLAG field. INT can be specified in hex by beginning with `0x' (i.e. /^0x[0-9A-F]+/) or in octal by beginning with `0' (i.e. /^0[0-7]+/) [0]. 
+system("time samtools view -b -f 4 S01B01_hib_rsubread.BAM > S01B01_hib_rsubreadrsubread.unmapped.bam") #will show unmapped reads
+system("time samtools view -b -f 4 S01B02_hib_rsubread.BAM > S01B02_hib_rsubread.unmapped.bam") #trocar "_hisat" por "_rsubread" caso use Rsubread
+system("time samtools view -b -f 4 S01B03_hib_rsubread.BAM > S01B03_hib_rsubread.unmapped.bam")
+system("time samtools view -b -f 4 S01B04_hib_rsubread.BAM > S01B04_hib_rsubread.unmapped.bam")
+system("time samtools view -b -f 4 S02B01_hib_rsubread.BAM > S02B01_hib_rsubread.unmapped.bam")
+system("time samtools view -b -f 4 S02B02_hib_rsubread.BAM > S02B02_hib_rsubread.unmapped.bam")
+system("time samtools view -b -f 4 S02B03_hib_rsubread.BAM > S02B03_hib_rsubread.unmapped.bam")
+system("time samtools view -b -f 4 S02B04_hib_rsubread.BAM > S02B04_hib_rsubread.unmapped.bam")
+system("time samtools view -b -f 4 S03B01_hib_rsubread.BAM > S03B01_hib_rsubread.unmapped.bam")
+system("time samtools view -b -f 4 S03B02_hib_rsubread.BAM > S03B02_hib_rsubread.unmapped.bam")
+system("time samtools view -b -f 4 S03B03_hib_rsubread.BAM > S03B03_hib_rsubread.unmapped.bam")
+system("time samtools view -b -f 4 S03B04_hib_rsubread.BAM > S03B04_hib_rsubread.unmapped.bam")
+system("time samtools view -b -f 4 S04B01_hib_rsubread.BAM > S04B01_hib_rsubread.unmapped.bam")
+system("time samtools view -b -f 4 S04B02_hib_rsubread.BAM > S04B02_hib_rsubread.unmapped.bam")
+system("time samtools view -b -f 4 S04B03_hib_rsubread.BAM > S04B03_hib_rsubread.unmapped.bam")
+system("time samtools view -b -f 4 S04B04_hib_rsubread.BAM > S04B04_hib_rsubread.unmapped.bam")
+system("time samtools view -b -f 4 S05B01_hib_rsubread.BAM > S05B01_hib_rsubread.unmapped.bam")
+system("time samtools view -b -f 4 S05B02_hib_rsubread.BAM > S05B02_hib_rsubread.unmapped.bam")
+system("time samtools view -b -f 4 S05B03_hib_rsubread.BAM > S05B03_hib_rsubread.unmapped.bam")
+system("time samtools view -b -f 4 S05B04_hib_rsubread.BAM > S05B04_hib_rsubread.unmapped.bam")
+system("time samtools view -b -f 4 S06B01_hib_rsubread.BAM > S06B01_hib_rsubread.unmapped.bam")
+system("time samtools view -b -f 4 S06B02_hib_rsubread.BAM > S06B02_hib_rsubread.unmapped.bam")
+system("time samtools view -b -f 4 S06B03_hib_rsubread.BAM > S06B03_hib_rsubread.unmapped.bam")
+system("time samtools view -b -f 4 S06B04_hib_rsubread.BAM > S06B04_hib_rsubread.unmapped.bam")
+```
+
+# Convert BAM to fq files
+```{r, eval=F, echo=T}
+# In case you need to extract each read from a pair to a separate file please use the follwoing commands: "samtools view -uf64 TCGA-CZ-4862.bam |samtools bam2fq - | gzip >x_1.fq.gz", "samtools view -uf128 TCGA-CZ-4862.bam |samtools bam2fq - |gzip >x_2.fq.gz"
+# -uf64 -> The read is mate 1 in a pair
+# -uf128 -> The read is mate 2 in a pair
+# bam2fq ->
+system("time samtools view -uf64 S01B01_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S01B01_hib_rsubread.unmapped_1.fq.gz")
+system("time samtools view -uf128 S01B01_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S01B01_hib_rsubread.unmapped_2.fq.gz")
+
+system("time samtools view -uf64 S01B02_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S01B02_hib_rsubread.unmapped_1.fq.gz")
+system("time samtools view -uf128 S01B02_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S01B02_hib_rsubread.unmapped_2.fq.gz")
+
+system("time samtools view -uf64 S01B03_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S01B03_hib_rsubread.unmapped_1.fq.gz")
+system("time samtools view -uf128 S01B03_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S01B03_hib_rsubread.unmapped_2.fq.gz")
+
+system("time samtools view -uf64 S01B04_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S01B04_hib_rsubread.unmapped_1.fq.gz")
+system("time samtools view -uf128 S01B04_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S01B04_hib_rsubread.unmapped_2.fq.gz")
+
+system("time samtools view -uf64 S02B01_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S02B01_hib_rsubread.unmapped_1.fq.gz")
+system("time samtools view -uf128 S02B01_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S02B01_hib_rsubread.unmapped_2.fq.gz")
+
+system("time samtools view -uf64 S02B02_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S02B02_hib_rsubread.unmapped_1.fq.gz")
+system("time samtools view -uf128 S02B02_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S02B02_hib_rsubread.unmapped_2.fq.gz")
+
+system("time samtools view -uf64 S02B03_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S02B03_hib_rsubread.unmapped_1.fq.gz")
+system("time samtools view -uf128 S02B03_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S02B03_hib_rsubread.unmapped_2.fq.gz")
+
+system("time samtools view -uf64 S02B04_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S02B04_hib_rsubread.unmapped_1.fq.gz")
+system("time samtools view -uf128 S02B04_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S02B04_hib_rsubread.unmapped_2.fq.gz")
+
+system("time samtools view -uf64 S03B01_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S03B01_hib_rsubread.unmapped_1.fq.gz")
+system("time samtools view -uf128 S03B01_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S03B01_hib_rsubread.unmapped_2.fq.gz")
+
+system("time samtools view -uf64 S03B02_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S03B02_hib_rsubread.unmapped_1.fq.gz")
+system("time samtools view -uf128 S03B02_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S03B02_hib_rsubread.unmapped_2.fq.gz")
+
+system("time samtools view -uf64 S03B03_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S03B03_hib_rsubread.unmapped_1.fq.gz")
+system("time samtools view -uf128 S03B03_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S03B03_hib_rsubread.unmapped_2.fq.gz")
+
+system("time samtools view -uf64 S03B04_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S03B04_hib_rsubread.unmapped_1.fq.gz")
+system("time samtools view -uf128 S03B04_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S03B04_hib_rsubread.unmapped_2.fq.gz")
+
+system("time samtools view -uf64 S04B01_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S04B01_hib_rsubread.unmapped_1.fq.gz")
+system("time samtools view -uf128 S04B01_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S04B01_hib_rsubread.unmapped_2.fq.gz")
+
+system("time samtools view -uf64 S04B02_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S04B02_hib_rsubread.unmapped_1.fq.gz")
+system("time samtools view -uf128 S04B02_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S04B02_hib_rsubread.unmapped_2.fq.gz")
+
+system("time samtools view -uf64 S04B03_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S04B03_hib_rsubread.unmapped_1.fq.gz")
+system("time samtools view -uf128 S04B03_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S04B03_hib_rsubread.unmapped_2.fq.gz")
+
+system("time samtools view -uf64 S04B04_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S04B04_hib_rsubread.unmapped_1.fq.gz")
+system("time samtools view -uf128 S04B04_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S04B04_hib_rsubread.unmapped_2.fq.gz")
+
+system("time samtools view -uf64 S05B01_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S05B01_hib_rsubread.unmapped_1.fq.gz")
+system("time samtools view -uf128 S05B01_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S05B01_hib_rsubread.unmapped_2.fq.gz")
+
+system("time samtools view -uf64 S05B02_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S05B02_hib_rsubread.unmapped_1.fq.gz")
+system("time samtools view -uf128 S05B02_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S05B02_hib_rsubread.unmapped_2.fq.gz")
+
+system("time samtools view -uf64 S05B03_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S05B03_hib_rsubread.unmapped_1.fq.gz")
+system("time samtools view -uf128 S05B03_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S05B03_hib_rsubread.unmapped_2.fq.gz")
+
+system("time samtools view -uf64 S05B04_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S05B04_hib_rsubread.unmapped_1.fq.gz")
+system("time samtools view -uf128 S05B04_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S05B04_hib_rsubread.unmapped_2.fq.gz")
+
+system("time samtools view -uf64 S06B01_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S06B01_hib_rsubread.unmapped_1.fq.gz")
+system("time samtools view -uf128 S06B01_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S06B01_hib_rsubread.unmapped_2.fq.gz")
+
+system("time samtools view -uf64 S06B02_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S06B02_hib_rsubread.unmapped_1.fq.gz")
+system("time samtools view -uf128 S06B02_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S06B02_hib_rsubread.unmapped_2.fq.gz")
+
+system("time samtools view -uf64 S06B03_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S06B03_hib_rsubread.unmapped_1.fq.gz")
+system("time samtools view -uf128 S06B03_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S06B03_hib_rsubread.unmapped_2.fq.gz")
+
+system("time samtools view -uf64 S06B04_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S06B04_hib_rsubread.unmapped_1.fq.gz")
+system("time samtools view -uf128 S06B04_hib_rsubread.unmapped.bam |samtools bam2fq - | gzip > S06B04_hib_rsubread.unmapped_2.fq.gz")
+```
+
+# Assembly without reference 
+```{r}
+# To facilitate downstream analyses, concatenate the RNA-seq data across all samples into a single set of inputs to generate a single reference Trinity assembly.
+#  The  cat  utility  shall  read  files in sequence and shall write their contents to the standard output in the same sequence.
+
+# Combine all 'left' reads into a single file
+system("time cat *_hib_rsubread.unmapped_1.fq.gz > reads.ALL.left.fq.gz")
+
+# combine all 'right' reads into a single file
+system("time cat *_hib_rsubread.unmapped_2.fq.gz > reads.ALL.right.fq.gz")
+
+
+# Assemble the reads into transcripts using Trinity with the following commands
+system("time Trinity --seqType fq --left reads.ALL.left.fq --right reads.ALL.right.fq --max_memory 6G")
+```
+
+# Then, all assembled genes were blasted against Hi Supragenome through BLAST2GO:
+# input file was Trinity.fasta from Trinity assembly
+# output file was Hib_Rsubread_blast2go_blastn_results_Supragenome.fasta
+
+# FASTA handling
+```{r, message=FALSE}
+library("Biostrings")
+library("stringr")
+fastaFile = readDNAStringSet("~/Dropbox/Script/Hib_Rsubread_blast2go_blastn_results_Supragenome.fasta")
+seq_name = names(fastaFile)
+sequence = paste(fastaFile)
+df <- data.frame(seq_name, sequence)
+df[,1] = sub(" \\[locus_tag","| \\[locus_tag",df[,1])
+df[,1] = sub(" NC_","| NC_",df[,1])
+df[,1] = sub(" NZ_","| NZ_",df[,1])
+df[,1] = sub(" \\[gene","| \\[gene",df[,1])
+```
+
+# Hib annnotation file in .txt
+```{r}
+Hib_GCF_000210875_1_proteintable <- read_delim("~/Dropbox/Script/genome/Haemophilus_influenzae_10810.GCF_000210875.1.proteintable.txt", "\t", escape_double = FALSE, trim_ws = TRUE)
+```
+
+#save fasta file
+```{r, message=FALSE}
+library("seqRFLP")
+df.fasta = dataframe2fas(df, file="Hib_Rsubread_blast2go_blastn_results_renamed_Supragenome.fasta")
+```
+
+# Just prepare the reference for alignment and abundance estimation
+```{r}
+system("time /home/carlos/Downloads/trinityrnaseq-Trinity-v2.4.0/util/align_and_estimate_abundance.pl --transcripts Hib_Rsubread_blast2go_blastn_results_Supragenome.fasta --est_method salmon --aln_method bowtie2 --prep_reference")
+```
+
+# Run the alignment and abundance estimation (assumes reference has already been prepped, errors-out if prepped reference not located.)
+# Trinity_Rsubread_salmon_bowtie2
+```{r, eval=F, echo=T}
+system("time /home/carlos/Downloads/trinityrnaseq-Trinity-v2.4.0/util/align_and_estimate_abundance.pl --SS_lib_type FR --transcripts /home/carlos/Dropbox/Dados_Alinhamento/Rsubread_featurecounts/Hib_Rsubread_blast2go_blastn_results_Supragenome.fasta --seqType fq --left S01B01_hib_rsubread.unmapped_1.fq --right S01B01_hib_rsubread.unmapped_2.fq --est_method salmon --aln_method bowtie2 --trinity_mode --prep_reference --output_dir Trinity_Rsubread_salmon_bowtie2_S01B01_hib")
+system("time /home/carlos/Downloads/trinityrnaseq-Trinity-v2.4.0/util/align_and_estimate_abundance.pl --SS_lib_type FR --transcripts /home/carlos/Dropbox/Dados_Alinhamento/Rsubread_featurecounts/Hib_Rsubread_blast2go_blastn_results_Supragenome.fasta --seqType fq --left S01B02_hib_rsubread.unmapped_1.fq --right S01B02_hib_rsubread.unmapped_2.fq --est_method salmon --aln_method bowtie2 --trinity_mode --prep_reference --output_dir Trinity_Rsubread_salmon_bowtie2_S01B02_hib")
+system("time /home/carlos/Downloads/trinityrnaseq-Trinity-v2.4.0/util/align_and_estimate_abundance.pl --SS_lib_type FR --transcripts /home/carlos/Dropbox/Dados_Alinhamento/Rsubread_featurecounts/Hib_Rsubread_blast2go_blastn_results_Supragenome.fasta --seqType fq --left S01B03_hib_rsubread.unmapped_1.fq --right S01B03_hib_rsubread.unmapped_2.fq --est_method salmon --aln_method bowtie2 --trinity_mode --prep_reference --output_dir Trinity_Rsubread_salmon_bowtie2_S01B03_hib")
+system("time /home/carlos/Downloads/trinityrnaseq-Trinity-v2.4.0/util/align_and_estimate_abundance.pl --SS_lib_type FR --transcripts /home/carlos/Dropbox/Dados_Alinhamento/Rsubread_featurecounts/Hib_Rsubread_blast2go_blastn_results_Supragenome.fasta --seqType fq --left S01B04_hib_rsubread.unmapped_1.fq --right S01B04_hib_rsubread.unmapped_2.fq --est_method salmon --aln_method bowtie2 --trinity_mode --prep_reference --output_dir Trinity_Rsubread_salmon_bowtie2_S01B04_hib")
+system("time /home/carlos/Downloads/trinityrnaseq-Trinity-v2.4.0/util/align_and_estimate_abundance.pl --SS_lib_type FR --transcripts /home/carlos/Dropbox/Dados_Alinhamento/Rsubread_featurecounts/Hib_Rsubread_blast2go_blastn_results_Supragenome.fasta --seqType fq --left S02B01_hib_rsubread.unmapped_1.fq --right S02B01_hib_rsubread.unmapped_2.fq --est_method salmon --aln_method bowtie2 --trinity_mode --prep_reference --output_dir Trinity_Rsubread_salmon_bowtie2_S02B01_hib")
+system("time /home/carlos/Downloads/trinityrnaseq-Trinity-v2.4.0/util/align_and_estimate_abundance.pl --SS_lib_type FR --transcripts /home/carlos/Dropbox/Dados_Alinhamento/Rsubread_featurecounts/Hib_Rsubread_blast2go_blastn_results_Supragenome.fasta --seqType fq --left S02B02_hib_rsubread.unmapped_1.fq --right S02B02_hib_rsubread.unmapped_2.fq --est_method salmon --aln_method bowtie2 --trinity_mode --prep_reference --output_dir Trinity_Rsubread_salmon_bowtie2_S02B02_hib")
+system("time /home/carlos/Downloads/trinityrnaseq-Trinity-v2.4.0/util/align_and_estimate_abundance.pl --SS_lib_type FR --transcripts /home/carlos/Dropbox/Dados_Alinhamento/Rsubread_featurecounts/Hib_Rsubread_blast2go_blastn_results_Supragenome.fasta --seqType fq --left S02B03_hib_rsubread.unmapped_1.fq --right S02B03_hib_rsubread.unmapped_2.fq --est_method salmon --aln_method bowtie2 --trinity_mode --prep_reference --output_dir Trinity_Rsubread_salmon_bowtie2_S02B03_hib")
+system("time /home/carlos/Downloads/trinityrnaseq-Trinity-v2.4.0/util/align_and_estimate_abundance.pl --SS_lib_type FR --transcripts /home/carlos/Dropbox/Dados_Alinhamento/Rsubread_featurecounts/Hib_Rsubread_blast2go_blastn_results_Supragenome.fasta --seqType fq --left S02B04_hib_rsubread.unmapped_1.fq --right S02B04_hib_rsubread.unmapped_2.fq --est_method salmon --aln_method bowtie2 --trinity_mode --prep_reference --output_dir Trinity_Rsubread_salmon_bowtie2_S02B04_hib")
+system("time /home/carlos/Downloads/trinityrnaseq-Trinity-v2.4.0/util/align_and_estimate_abundance.pl --SS_lib_type FR --transcripts /home/carlos/Dropbox/Dados_Alinhamento/Rsubread_featurecounts/Hib_Rsubread_blast2go_blastn_results_Supragenome.fasta --seqType fq --left S03B01_hib_rsubread.unmapped_1.fq --right S03B01_hib_rsubread.unmapped_2.fq --est_method salmon --aln_method bowtie2 --trinity_mode --prep_reference --output_dir Trinity_Rsubread_salmon_bowtie2_S03B01_hib")
+system("time /home/carlos/Downloads/trinityrnaseq-Trinity-v2.4.0/util/align_and_estimate_abundance.pl --SS_lib_type FR --transcripts /home/carlos/Dropbox/Dados_Alinhamento/Rsubread_featurecounts/Hib_Rsubread_blast2go_blastn_results_Supragenome.fasta --seqType fq --left S03B02_hib_rsubread.unmapped_1.fq --right S03B02_hib_rsubread.unmapped_2.fq --est_method salmon --aln_method bowtie2 --trinity_mode --prep_reference --output_dir Trinity_Rsubread_salmon_bowtie2_S03B02_hib")
+system("time /home/carlos/Downloads/trinityrnaseq-Trinity-v2.4.0/util/align_and_estimate_abundance.pl --SS_lib_type FR --transcripts /home/carlos/Dropbox/Dados_Alinhamento/Rsubread_featurecounts/Hib_Rsubread_blast2go_blastn_results_Supragenome.fasta --seqType fq --left S03B03_hib_rsubread.unmapped_1.fq --right S03B03_hib_rsubread.unmapped_2.fq --est_method salmon --aln_method bowtie2 --trinity_mode --prep_reference --output_dir Trinity_Rsubread_salmon_bowtie2_S03B03_hib")
+system("time /home/carlos/Downloads/trinityrnaseq-Trinity-v2.4.0/util/align_and_estimate_abundance.pl --SS_lib_type FR --transcripts /home/carlos/Dropbox/Dados_Alinhamento/Rsubread_featurecounts/Hib_Rsubread_blast2go_blastn_results_Supragenome.fasta --seqType fq --left S03B04_hib_rsubread.unmapped_1.fq --right S03B04_hib_rsubread.unmapped_2.fq --est_method salmon --aln_method bowtie2 --trinity_mode --prep_reference --output_dir Trinity_Rsubread_salmon_bowtie2_S03B04_hib")
+system("time /home/carlos/Downloads/trinityrnaseq-Trinity-v2.4.0/util/align_and_estimate_abundance.pl --SS_lib_type FR --transcripts /home/carlos/Dropbox/Dados_Alinhamento/Rsubread_featurecounts/Hib_Rsubread_blast2go_blastn_results_Supragenome.fasta --seqType fq --left S04B01_hib_rsubread.unmapped_1.fq --right S04B01_hib_rsubread.unmapped_2.fq --est_method salmon --aln_method bowtie2 --trinity_mode --prep_reference --output_dir Trinity_Rsubread_salmon_bowtie2_S04B01_hib")
+system("time /home/carlos/Downloads/trinityrnaseq-Trinity-v2.4.0/util/align_and_estimate_abundance.pl --SS_lib_type FR --transcripts /home/carlos/Dropbox/Dados_Alinhamento/Rsubread_featurecounts/Hib_Rsubread_blast2go_blastn_results_Supragenome.fasta --seqType fq --left S04B02_hib_rsubread.unmapped_1.fq --right S04B02_hib_rsubread.unmapped_2.fq --est_method salmon --aln_method bowtie2 --trinity_mode --prep_reference --output_dir Trinity_Rsubread_salmon_bowtie2_S04B02_hib")
+system("time /home/carlos/Downloads/trinityrnaseq-Trinity-v2.4.0/util/align_and_estimate_abundance.pl --SS_lib_type FR --transcripts /home/carlos/Dropbox/Dados_Alinhamento/Rsubread_featurecounts/Hib_Rsubread_blast2go_blastn_results_Supragenome.fasta --seqType fq --left S04B03_hib_rsubread.unmapped_1.fq --right S04B03_hib_rsubread.unmapped_2.fq --est_method salmon --aln_method bowtie2 --trinity_mode --prep_reference --output_dir Trinity_Rsubread_salmon_bowtie2_S04B03_hib")
+system("time /home/carlos/Downloads/trinityrnaseq-Trinity-v2.4.0/util/align_and_estimate_abundance.pl --SS_lib_type FR --transcripts /home/carlos/Dropbox/Dados_Alinhamento/Rsubread_featurecounts/Hib_Rsubread_blast2go_blastn_results_Supragenome.fasta --seqType fq --left S04B04_hib_rsubread.unmapped_1.fq --right S04B04_hib_rsubread.unmapped_2.fq --est_method salmon --aln_method bowtie2 --trinity_mode --prep_reference --output_dir Trinity_Rsubread_salmon_bowtie2_S04B04_hib")
+system("time /home/carlos/Downloads/trinityrnaseq-Trinity-v2.4.0/util/align_and_estimate_abundance.pl --SS_lib_type FR --transcripts /home/carlos/Dropbox/Dados_Alinhamento/Rsubread_featurecounts/Hib_Rsubread_blast2go_blastn_results_Supragenome.fasta --seqType fq --left S05B01_hib_rsubread.unmapped_1.fq --right S05B01_hib_rsubread.unmapped_2.fq --est_method salmon --aln_method bowtie2 --trinity_mode --prep_reference --output_dir Trinity_Rsubread_salmon_bowtie2_S05B01_hib")
+system("time /home/carlos/Downloads/trinityrnaseq-Trinity-v2.4.0/util/align_and_estimate_abundance.pl --SS_lib_type FR --transcripts /home/carlos/Dropbox/Dados_Alinhamento/Rsubread_featurecounts/Hib_Rsubread_blast2go_blastn_results_Supragenome.fasta --seqType fq --left S05B02_hib_rsubread.unmapped_1.fq --right S05B02_hib_rsubread.unmapped_2.fq --est_method salmon --aln_method bowtie2 --trinity_mode --prep_reference --output_dir Trinity_Rsubread_salmon_bowtie2_S05B02_hib")
+system("time /home/carlos/Downloads/trinityrnaseq-Trinity-v2.4.0/util/align_and_estimate_abundance.pl --SS_lib_type FR --transcripts /home/carlos/Dropbox/Dados_Alinhamento/Rsubread_featurecounts/Hib_Rsubread_blast2go_blastn_results_Supragenome.fasta --seqType fq --left S05B03_hib_rsubread.unmapped_1.fq --right S05B03_hib_rsubread.unmapped_2.fq --est_method salmon --aln_method bowtie2 --trinity_mode --prep_reference --output_dir Trinity_Rsubread_salmon_bowtie2_S05B03_hib")
+system("time /home/carlos/Downloads/trinityrnaseq-Trinity-v2.4.0/util/align_and_estimate_abundance.pl --SS_lib_type FR --transcripts /home/carlos/Dropbox/Dados_Alinhamento/Rsubread_featurecounts/Hib_Rsubread_blast2go_blastn_results_Supragenome.fasta --seqType fq --left S05B04_hib_rsubread.unmapped_1.fq --right S05B04_hib_rsubread.unmapped_2.fq --est_method salmon --aln_method bowtie2 --trinity_mode --prep_reference --output_dir Trinity_Rsubread_salmon_bowtie2_S05B04_hib")
+system("time /home/carlos/Downloads/trinityrnaseq-Trinity-v2.4.0/util/align_and_estimate_abundance.pl --SS_lib_type FR --transcripts /home/carlos/Dropbox/Dados_Alinhamento/Rsubread_featurecounts/Hib_Rsubread_blast2go_blastn_results_Supragenome.fasta --seqType fq --left S06B01_hib_rsubread.unmapped_1.fq --right S06B01_hib_rsubread.unmapped_2.fq --est_method salmon --aln_method bowtie2 --trinity_mode --prep_reference --output_dir Trinity_Rsubread_salmon_bowtie2_S06B01_hib")
+system("time /home/carlos/Downloads/trinityrnaseq-Trinity-v2.4.0/util/align_and_estimate_abundance.pl --SS_lib_type FR --transcripts /home/carlos/Dropbox/Dados_Alinhamento/Rsubread_featurecounts/Hib_Rsubread_blast2go_blastn_results_Supragenome.fasta --seqType fq --left S06B02_hib_rsubread.unmapped_1.fq --right S06B02_hib_rsubread.unmapped_2.fq --est_method salmon --aln_method bowtie2 --trinity_mode --prep_reference --output_dir Trinity_Rsubread_salmon_bowtie2_S06B02_hib")
+system("time /home/carlos/Downloads/trinityrnaseq-Trinity-v2.4.0/util/align_and_estimate_abundance.pl --SS_lib_type FR --transcripts /home/carlos/Dropbox/Dados_Alinhamento/Rsubread_featurecounts/Hib_Rsubread_blast2go_blastn_results_Supragenome.fasta --seqType fq --left S06B03_hib_rsubread.unmapped_1.fq --right S06B03_hib_rsubread.unmapped_2.fq --est_method salmon --aln_method bowtie2 --trinity_mode --prep_reference --output_dir Trinity_Rsubread_salmon_bowtie2_S06B03_hib")
+system("time /home/carlos/Downloads/trinityrnaseq-Trinity-v2.4.0/util/align_and_estimate_abundance.pl --SS_lib_type FR --transcripts /home/carlos/Dropbox/Dados_Alinhamento/Rsubread_featurecounts/Hib_Rsubread_blast2go_blastn_results_Supragenome.fasta --seqType fq --left S06B04_hib_rsubread.unmapped_1.fq --right S06B04_hib_rsubread.unmapped_2.fq --est_method salmon --aln_method bowtie2 --trinity_mode --prep_reference --output_dir Trinity_Rsubread_salmon_bowtie2_S06B04_hib")
+```
+
+
+# Build Transcript and Gene Expression Matrices
+```{r, eval=F, echo=T}
+# abundance_estimates_to_matrix.pl -> Using the transcript and gene-level abundance estimates for each of your samples, construct a matrix of counts and a matrix of normalized expression values using the following script:
+# --est_method <string> -> RSEM|eXpress|kallisto|salmon  (needs to know what format to expect)
+# --name_sample_by_basedir -> name sample column by dirname instead of filename
+system("time /home/carlos/Downloads/trinityrnaseq-Trinity-v2.4.0/util/abundance_estimates_to_matrix.pl --est_method salmon --name_sample_by_basedir Trinity_Rsubread_salmon_bowtie2_S01B01_hib/quant.sf.genes Trinity_Rsubread_salmon_bowtie2_S01B02_hib/quant.sf.genes Trinity_Rsubread_salmon_bowtie2_S01B03_hib/quant.sf.genes  Trinity_Rsubread_salmon_bowtie2_S01B04_hib/quant.sf.genes Trinity_Rsubread_salmon_bowtie2_S02B01_hib/quant.sf.genes Trinity_Rsubread_salmon_bowtie2_S02B02_hib/quant.sf.genes Trinity_Rsubread_salmon_bowtie2_S02B03_hib/quant.sf.genes Trinity_Rsubread_salmon_bowtie2_S02B04_hib/quant.sf.genes Trinity_Rsubread_salmon_bowtie2_S03B01_hib/quant.sf.genes Trinity_Rsubread_salmon_bowtie2_S03B02_hib/quant.sf.genes Trinity_Rsubread_salmon_bowtie2_S03B03_hib/quant.sf.genes Trinity_Rsubread_salmon_bowtie2_S03B04_hib/quant.sf.genes Trinity_Rsubread_salmon_bowtie2_S04B01_hib/quant.sf.genes Trinity_Rsubread_salmon_bowtie2_S04B02_hib/quant.sf.genes Trinity_Rsubread_salmon_bowtie2_S04B03_hib/quant.sf.genes Trinity_Rsubread_salmon_bowtie2_S04B04_hib/quant.sf.genes Trinity_Rsubread_salmon_bowtie2_S05B01_hib/quant.sf.genes Trinity_Rsubread_salmon_bowtie2_S05B02_hib/quant.sf.genes Trinity_Rsubread_salmon_bowtie2_S05B03_hib/quant.sf.genes Trinity_Rsubread_salmon_bowtie2_S05B04_hib/quant.sf.genes Trinity_Rsubread_salmon_bowtie2_S06B01_hib/quant.sf.genes Trinity_Rsubread_salmon_bowtie2_S06B02_hib/quant.sf.genes Trinity_Rsubread_salmon_bowtie2_S06B03_hib/quant.sf.genes Trinity_Rsubread_salmon_bowtie2_S06B04_hib/quant.sf.genes")
+```
+
+
+
+
+# Finally, all reads were counted through salmon
+
+```{r}
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

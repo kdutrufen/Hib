@@ -359,7 +359,6 @@ EEgenes_edgeR = EEgenes_edgeR[EEgenes_edgeR$LFC_sum<0.01,]
 EEgenes_edgeR = EEgenes_edgeR[EEgenes_edgeR$LFC_sum>-0.01,]
 EEgenes_edgeR = EEgenes_edgeR[order(EEgenes_edgeR$LFC_sum),]
 
-View(EEgenes_edgeR)
 #EEgenes_edgeR.1 = data.frame(LFC_sum = EEgenes_edgeR$LFC_sum, (d$counts*(10^6)/colSums(d$counts))[rownames(EEgenes_edgeR),])
 #EEgenes_edgeR.1
 ```
@@ -388,16 +387,11 @@ testList = apply(as.matrix(df),1,function(row) {
 }
 
 df = as.data.frame(countData)
-groups = as.factor(colnames(df))
+groups = as.factor(HibDesign1$condition)
 
 allgenesvar = filter.anova(df = df, groups = groups)
 
-allgenesvar1 = sort(allgenesvar, decreasing = FALSE)
-
-TopVAr4WGCNA = allgenesvar1[1:12000]
-TopVAr4WGCNA <-   rownames(countData)[which(rownames(countData) %in% rownames(top)[1:4000])]
-
-newcountData = countData[names(TopVAr4WGCNA),]
+allgenesvar1 = sort(allgenesvar, decreasing = TRUE)
 ```
 
 
