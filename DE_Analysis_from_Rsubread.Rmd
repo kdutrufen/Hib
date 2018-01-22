@@ -623,7 +623,7 @@ library("limma")
 
 # Differential expression analysis
 ```{r, message=FALSE}
-HibDesign2 = data.frame(row.names = colnames( countData ), condition = HibDesign$condition, set2$W)
+HibDesign2 = data.frame(row.names = colnames( countData ), condition = HibDesign1$condition, set2$W)
 design = model.matrix(~0+group+set2$W, data = HibDesign2)
 colnames(design) <- c(levels(group), "W")
 ```
