@@ -1,0 +1,30 @@
+time hisat2 -p 40 --dta -x Hisat2_Output/hib_tran --no-unal --un-conc-gz Hisat2_Output/S01B01_Hib.unmapped.fq --fr -1 HibPP061602h_CAGATC_r1_good_clean.common.fastq -2 HibPP061602h_CAGATC_r2_good_clean.common.fastq -S Hisat2_Output/S01B01_Hib_hisat.sam
+time hisat2 -p 40 --dta -x Hisat2_Output/hib_tran --no-unal --un-conc-gz Hisat2_Output/S01B02_Hib.unmapped.fq --fr -1 HibPP071602h_ATGTCA_r1_good_clean.common.fastq -2 HibPP071602h_ATGTCA_r2_good_clean.common.fastq -S Hisat2_Output/S01B02_Hib_hisat.sam
+time hisat2 -p 40 --dta -x Hisat2_Output/hib_tran --no-unal --un-conc-gz Hisat2_Output/S01B03_Hib.unmapped.fq --fr -1 HibPP081602h_ATCACG_r1_good_clean.common.fastq -2 HibPP081602h_ATCACG_r2_good_clean.common.fastq -S Hisat2_Output/S01B03_Hib_hisat.sam
+time hisat2 -p 40 --dta -x Hisat2_Output/hib_tran --no-unal --un-conc-gz Hisat2_Output/S01B04_Hib.unmapped.fq --fr -1 HibPP021702h_GTGGCC_r1_good_clean.common.fastq -2 HibPP021702h_GTGGCC_r2_good_clean.common.fastq -S Hisat2_Output/S01B04_Hib_hisat.sam
+
+time hisat2 -p 40 --dta -x Hisat2_Output/hib_tran --no-unal --un-conc-gz Hisat2_Output/S02B01_Hib.unmapped.fq --fr -1 HibPP061608h_CTTGTA_r1_good_clean.common.fastq -2 HibPP061608h_CTTGTA_r2_good_clean.common.fastq -S Hisat2_Output/S02B01_Hib_hisat.sam
+time hisat2 -p 40 --dta -x Hisat2_Output/hib_tran --no-unal --un-conc-gz Hisat2_Output/S02B02_Hib.unmapped.fq --fr -1 HibPP071608h_CCGTCC_r1_good_clean.common.fastq -2 HibPP071608h_CCGTCC_r2_good_clean.common.fastq -S Hisat2_Output/S02B02_Hib_hisat.sam
+time hisat2 -p 40 --dta -x Hisat2_Output/hib_tran --no-unal --un-conc-gz Hisat2_Output/S02B03_Hib.unmapped.fq --fr -1 HibPP081608h_TTAGGC_r1_good_clean.common.fastq -2 HibPP081608h_TTAGGC_r2_good_clean.common.fastq -S Hisat2_Output/S02B03_Hib_hisat.sam
+time hisat2 -p 40 --dta -x Hisat2_Output/hib_tran --no-unal --un-conc-gz Hisat2_Output/S02B04_Hib.unmapped.fq --fr -1 HibPP021708h_GTTTCG_r1_good_clean.common.fastq -2 HibPP021708h_GTTTCG_r2_good_clean.common.fastq -S Hisat2_Output/S02B04_Hib_hisat.sam
+
+time hisat2 -p 40 --dta -x Hisat2_Output/hib_tran --no-unal --un-conc-gz Hisat2_Output/S03B01_Hib.unmapped.fq --fr -1 HibPP061611h_AGTTCC_r1_good_clean.common.fastq -2 HibPP061611h_AGTTCC_r2_good_clean.common.fastq -S Hisat2_Output/S03B01_Hib_hisat.sam
+time hisat2 -p 40 --dta -x Hisat2_Output/hib_tran --no-unal --un-conc-gz Hisat2_Output/S03B02_Hib.unmapped.fq --fr -1 HibPP071610h_GTCCGC_r1_good_clean.common.fastq -2 HibPP071610h_GTCCGC_r2_good_clean.common.fastq -S Hisat2_Output/S03B02_Hib_hisat.sam
+time hisat2 -p 40 --dta -x Hisat2_Output/hib_tran --no-unal --un-conc-gz Hisat2_Output/S03B03_Hib.unmapped.fq --fr -1 HibPP081610h_ACTTGA_r1_good_clean.common.fastq -2 HibPP081610h_ACTTGA_r2_good_clean.common.fastq -S Hisat2_Output/S03B03_Hib_hisat.sam
+time hisat2 -p 40 --dta -x Hisat2_Output/hib_tran --no-unal --un-conc-gz Hisat2_Output/S03B04_Hib.unmapped.fq --fr -1 HibPP021710h_CGTACG_r1_good_clean.common.fastq -2 HibPP021710h_CGTACG_r2_good_clean.common.fastq -S Hisat2_Output/S03B04_Hib_hisat.sam
+
+time hisat2 -p 40 --dta -x Hisat2_Output/hib_tran --no-unal --un-conc-gz Hisat2_Output/S04B01_Hib.unmapped.fq --fr -1 HibPP061610h_AGTCAA_r1_good_clean.common.fastq -2 HibPP061610h_AGTCAA_r2_good_clean.common.fastq -S Hisat2_Output/S04B01_Hib_hisat.sam
+time hisat2 -p 40 --dta -x Hisat2_Output/hib_tran --no-unal --un-conc-gz Hisat2_Output/S04B02_Hib.unmapped.fq --fr -1 HibPP071611h_GTGAAA_r1_good_clean.common.fastq -2 HibPP071611h_GTGAAA_r2_good_clean.common.fastq -S Hisat2_Output/S04B02_Hib_hisat.sam
+time hisat2 -p 40 --dta -x Hisat2_Output/hib_tran --no-unal --un-conc-gz Hisat2_Output/S04B03_Hib.unmapped.fq --fr -1 HibPP081611h_GATCAG_r1_good_clean.common.fastq -2 HibPP081611h_GATCAG_r2_good_clean.common.fastq -S Hisat2_Output/S04B03_Hib_hisat.sam
+time hisat2 -p 40 --dta -x Hisat2_Output/hib_tran --no-unal --un-conc-gz Hisat2_Output/S04B04_Hib.unmapped.fq --fr -1 HibPP021711h_GAGTGG_r1_good_clean.common.fastq -2 HibPP021711h_GAGTGG_r2_good_clean.common.fastq -S Hisat2_Output/S04B04_Hib_hisat.sam
+
+time hisat2 -p 40 --dta -x Hisat2_Output/hib_tran --no-unal --un-conc-gz Hisat2_Output/S05B01_Hib.unmapped.fq --fr -1 HibPP061615h_CGATGT_r1_good_clean.common.fastq -2 HibPP061615h_CGATGT_r2_good_clean.common.fastq -S Hisat2_Output/S05B01_Hib_hisat.sam
+time hisat2 -p 40 --dta -x Hisat2_Output/hib_tran --no-unal --un-conc-gz Hisat2_Output/S05B02_Hib.unmapped.fq --fr -1 HibPP071615h_ACAGTG_r1_good_clean.common.fastq -2 HibPP071615h_ACAGTG_r2_good_clean.common.fastq -S Hisat2_Output/S05B02_Hib_hisat.sam
+time hisat2 -p 40 --dta -x Hisat2_Output/hib_tran --no-unal --un-conc-gz Hisat2_Output/S05B03_Hib.unmapped.fq --fr -1 HibPP081615h_TAGCTT_r1_good_clean.common.fastq -2 HibPP081615h_TAGCTT_r2_good_clean.common.fastq -S Hisat2_Output/S05B03_Hib_hisat.sam
+time hisat2 -p 40 --dta -x Hisat2_Output/hib_tran --no-unal --un-conc-gz Hisat2_Output/S05B04_Hib.unmapped.fq --fr -1 HibPP021715h_ACTGAT_r1_good_clean.common.fastq -2 HibPP021715h_ACTGAT_r2_good_clean.common.fastq -S Hisat2_Output/S05B04_Hib_hisat.sam
+
+time hisat2 -p 40 --dta -x Hisat2_Output/hib_tran --no-unal --un-conc-gz Hisat2_Output/S06B01_Hib.unmapped.fq --fr -1 HibPP061620h_TGACCA_r1_good_clean.common.fastq -2 HibPP061620h_TGACCA_r2_good_clean.common.fastq -S Hisat2_Output/S06B01_Hib_hisat.sam
+time hisat2 -p 40 --dta -x Hisat2_Output/hib_tran --no-unal --un-conc-gz Hisat2_Output/S06B02_Hib.unmapped.fq --fr -1 HibPP071620h_GCCAAT_r1_good_clean.common.fastq -2 HibPP071620h_GCCAAT_r2_good_clean.common.fastq -S Hisat2_Output/S06B02_Hib_hisat.sam
+time hisat2 -p 40 --dta -x Hisat2_Output/hib_tran --no-unal --un-conc-gz Hisat2_Output/S06B03_Hib.unmapped.fq --fr -1 HibPP081620h_GGCTAC_r1_good_clean.common.fastq -2 HibPP081620h_GGCTAC_r2_good_clean.common.fastq -S Hisat2_Output/S06B03_Hib_hisat.sam
+time hisat2 -p 40 --dta -x Hisat2_Output/hib_tran --no-unal --un-conc-gz Hisat2_Output/S06B04_Hib.unmapped.fq --fr -1 HibPP021720h_ATTCCT_r1_good_clean.common.fastq -2 HibPP021720h_ATTCCT_r2_good_clean.common.fastq -S Hisat2_Output/S06B04_Hib_hisat.sam
+

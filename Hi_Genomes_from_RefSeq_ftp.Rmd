@@ -1,0 +1,57 @@
+---
+title: "Hi_Genomes_from_RefSeq_ftp"
+author: "Carlos Eduardo Madureira Trufen"
+date: "June 14, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r }
+require(RCurl)
+```
+
+```{r }
+genomes_proks <- read_csv("~/Dropbox/Hib_Data/genomes_proks.csv")
+genomes_proks[1,2]="Rd_KW20"
+```
+
+```{r }
+url = vector(mode="list", length=nrow(genomes_proks)-1)
+for (i in 1:length(url)){url[[i]] = genomes_proks$`GenBank FTP`[i]}
+```
+
+```{r }
+filenames = vector(mode="list", length=length(url))
+#for (i in 1:length(url)){filenames[[i]] = getURL(url[[i]], ftp.use.epsv = FALSE, dirlistonly = TRUE)}
+# for (i in 1:length(url)){filenames[[i]] = getURL(url[[i]], crlf = TRUE)}
+# for (i in 1:length(url)){filenames[[i]] <- strsplit(url[[i]], "\r\n")}
+# for (i in 1:length(url)){filenames[[i]] = unlist(filenames[[i]])}
+
+for (i in 1:length(url)){filenames[[i]] <- strsplit(url[[i]], split="/")}
+for (i in 1:length(url)){filenames[[i]] = unlist(filenames[[i]])}
+for (i in 1:length(url)){filenames[[i]] = tail(filenames[[i]], n=1)}
+```
+
+```{r }
+setwd("~/bioinformatics/Hib/")
+#for (i in 1:length(filenames)){download.file(paste0(url[[i]], "/", filenames[[i]], "_cds_from_genomic.fna.gz"), paste0(getwd(), "/Local_Database_Haemophilus_influenzae_all_strains/Hi_", genomes_proks[i,2]$Strain,"_cds_from_genomic.fna.gz"), method="wininet", quiet=FALSE)}
+
+for (i in 1:length(filenames)){download.file(paste0(url[[i]], "/", filenames[[i]], "_cds_from_genomic.fna.gz"), paste0("~/bioinformatics/Hib/", "/Local_Database_Haemophilus_influenzae_all_strains/Hi_", genomes_proks[i,2]$Strain,"_cds_from_genomic.fna.gz"), method="libcurl", quiet=FALSE)}
+
+#for (i in 429:length(filenames)){download.file(paste0(url[[i]], "/", filenames[[i]], "_cds_from_genomic.fna.gz"), paste0("~/bioinformatics/Hib/Local_Database_Haemophilus_influenzae_all_strains/Hi_", genomes_proks[i,2]$Strain,"_cds_from_genomic.fna.gz"), method="libcurl", quiet=FALSE)}
+```
+
+```{r }
+setwd("~/bioinformatics/Hib/Local_Database_Haemophilus_influenzae_all_strains")
+library(R.utils)
+for (i in 1:length(list.files(path = "."))){gunzip(list.files(path = ".")[i])}
+```
+
+```{r }
+library("seqRFLP")
+file.cat(dir=getwd(), appendix="_from_genomic.fna", file="Haemophilus_influenzae_Supragenome_from_genomic.fna")
+```
+

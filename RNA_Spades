@@ -1,0 +1,14 @@
+export PATH=$PATH:~/projects/Tools/SPAdes-3.11.1-Linux/bin
+
+--pe<#>-<or>
+    Orientation of reads for paired-end library number <#> (<#> = 1,2,..,9; <or> = "fr","rf","ff").
+    The default orientation for paired-end libraries is forward-reverse. For example, to specify reverse-forward orientation for the second paired-end library, you should use the flag: --pe2-rf 
+
+-t <int> (or --threads <int>)
+    Number of threads. The default value is 16. 
+
+ -m <int> (or --memory <int>)
+    Set memory limit in Gb. SPAdes terminates if it reaches this limit. The default value is 250 Gb. Actual amount of consumed RAM will be below this limit. Make sure this value is correct for the given machine. SPAdes uses the limit value to automatically determine the sizes of various buffers, etc. 
+
+ -k <int,int,...>
+    Comma-separated list of k-mer sizes to be used (all values must be odd, less than 128 and listed in ascending order). If --sc is set the default values are 21,33,55. For multicell data sets K values are automatically selected using maximum read length

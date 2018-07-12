@@ -1,0 +1,30 @@
+time samtools sort -@ 40 -O BAM -o S01B01_Hib_hisat_sorted.bam S01B01_Hib_hisat.sam
+time samtools sort -@ 40 -O BAM -o S01B02_Hib_hisat_sorted.bam S01B02_Hib_hisat.sam
+time samtools sort -@ 40 -O BAM -o S01B03_Hib_hisat_sorted.bam S01B03_Hib_hisat.sam
+time samtools sort -@ 40 -O BAM -o S01B04_Hib_hisat_sorted.bam S01B04_Hib_hisat.sam
+
+time samtools sort -@ 40 -O BAM -o S02B01_Hib_hisat_sorted.bam S02B01_Hib_hisat.sam
+time samtools sort -@ 40 -O BAM -o S02B02_Hib_hisat_sorted.bam S02B02_Hib_hisat.sam
+time samtools sort -@ 40 -O BAM -o S02B03_Hib_hisat_sorted.bam S02B03_Hib_hisat.sam
+time samtools sort -@ 40 -O BAM -o S02B04_Hib_hisat_sorted.bam S02B04_Hib_hisat.sam
+
+time samtools sort -@ 40 -O BAM -o S03B01_Hib_hisat_sorted.bam S03B01_Hib_hisat.sam
+time samtools sort -@ 40 -O BAM -o S03B02_Hib_hisat_sorted.bam S03B02_Hib_hisat.sam
+time samtools sort -@ 40 -O BAM -o S03B03_Hib_hisat_sorted.bam S03B03_Hib_hisat.sam
+time samtools sort -@ 40 -O BAM -o S03B04_Hib_hisat_sorted.bam S03B04_Hib_hisat.sam
+
+time samtools sort -@ 40 -O BAM -o S04B01_Hib_hisat_sorted.bam S04B01_Hib_hisat.sam
+time samtools sort -@ 40 -O BAM -o S04B02_Hib_hisat_sorted.bam S04B02_Hib_hisat.sam
+time samtools sort -@ 40 -O BAM -o S04B03_Hib_hisat_sorted.bam S04B03_Hib_hisat.sam
+time samtools sort -@ 40 -O BAM -o S04B04_Hib_hisat_sorted.bam S04B04_Hib_hisat.sam
+
+time samtools sort -@ 40 -O BAM -o S05B01_Hib_hisat_sorted.bam S05B01_Hib_hisat.sam
+time samtools sort -@ 40 -O BAM -o S05B02_Hib_hisat_sorted.bam S05B02_Hib_hisat.sam
+time samtools sort -@ 40 -O BAM -o S05B03_Hib_hisat_sorted.bam S05B03_Hib_hisat.sam
+time samtools sort -@ 40 -O BAM -o S05B04_Hib_hisat_sorted.bam S05B04_Hib_hisat.sam
+
+time samtools sort -@ 40 -O BAM -o S06B01_Hib_hisat_sorted.bam S06B01_Hib_hisat.sam
+time samtools sort -@ 40 -O BAM -o S06B02_Hib_hisat_sorted.bam S06B02_Hib_hisat.sam
+time samtools sort -@ 40 -O BAM -o S06B03_Hib_hisat_sorted.bam S06B03_Hib_hisat.sam
+time samtools sort -@ 40 -O BAM -o S06B04_Hib_hisat_sorted.bam S06B04_Hib_hisat.sam
+

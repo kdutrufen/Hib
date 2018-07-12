@@ -1,0 +1,109 @@
+---
+title: "system("featureCounts"
+author: "Carlos Eduardo Madureira Trufen"
+date: "June 11, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# from GenBank
+# Obs: Less genes annotated (1918)
+```{r }
+library('ballgown')
+GenBank_gff <- gffRead("~/Dropbox/Hib_Data/GCA_000210875.1_ASM21087v1_genomic.gff")
+GenBank_gff$Name <- getAttributeField(GenBank_gff$attributes, "Name", attrsep = "; ")
+GenBank_gff$ID <- getAttributeField(GenBank_gff$attributes, "ID", attrsep = "; ")
+colnames(GenBank_gff)
+
+GenBank_gff.genes <- GenBank_gff[GenBank_gff[,3]=="gene",]
+GenBank_gff.cds <- GenBank_gff[GenBank_gff[,3]=="CDS",]
+GenBank_gff.genes$Name <- getAttributeField(GenBank_gff.genes$attributes, "Name", attrsep = "; ")
+GenBank_gff.genes$ID <- getAttributeField(GenBank_gff.genes$attributes, "ID", attrsep = "; ")
+GenBank_gff.genes$locus_tag <- getAttributeField(GenBank_gff.genes$attributes, "locus_tag", attrsep = "; ")
+GenBank_gff.genes$locus_tag = make.unique(GenBank_gff.genes$locus_tag)
+
+GenBank_gff.CDS <- gff[gff[,3]=="CDS",]
+
+chr = rep("NC_016809.1", nrow(gff.genes))
+Hibgff_from_GenBank = as.data.frame(cbind(GenBank_gff.genes[,12], chr, GenBank_gff.genes[,4], GenBank_gff.genes[,5], GenBank_gff.genes[,7]))
+colnames(Hibgff_from_GenBank) = c("GeneID", "Chr", "Start", "End", "Strand")
+
+write.table(Hibgff_from_GenBank, "~/Dropbox/Hib_Data/Hib_annotation_genes_from_GenBank.gff", sep = "\t", col.names = TRUE)
+#Hib_annotation_genes.gff=gffRead("Hib_annotation_genes.gff", nrows = -1)
+```
+
+#from RefSeq
+# Obs: 2012 genes annotated
+```{r }
+library('ballgown')
+RefSeq_gff <- gffRead("~/Dropbox/Hib_Data/GCF_000210875.1_ASM21087v1_genomic.gff")
+RefSeq_gff$Name <- getAttributeField(RefSeq_gff$attributes, "Name", attrsep = "; ")
+RefSeq_gff$ID <- getAttributeField(RefSeq_gff$attributes, "ID", attrsep = "; ")
+colnames(RefSeq_gff)
+
+RefSeq_gff.genes <- RefSeq_gff[RefSeq_gff[,3]=="gene",]
+RefSeq_gff.cds <- RefSeq_gff[RefSeq_gff[,3]=="CDS",]
+RefSeq_gff.genes$Name <- getAttributeField(RefSeq_gff.genes$attributes, "Name", attrsep = "; ")
+RefSeq_gff.genes$ID <- getAttributeField(RefSeq_gff.genes$attributes, "ID", attrsep = "; ")
+RefSeq_gff.genes$OldLocusTag <- getAttributeField(RefSeq_gff.genes$attributes, "old_locus_tag", attrsep = "; ")
+#RefSeq_gff.genes$OldLocusTag = make.unique(RefSeq_gff.genes$OldLocusTag)
+colnames(RefSeq_gff.genes)
+
+#chr = rep("NC_016809.1", nrow(RefSeq_gff.genes))
+chr = rep("FQ312006.1", nrow(RefSeq_gff.genes))
+feature = rep("gene", nrow(RefSeq_gff.genes))
+Hibgff_from_RefSeq = as.data.frame(cbind(RefSeq_gff.genes[,10], chr, RefSeq_gff.genes[,4], RefSeq_gff.genes[,5], RefSeq_gff.genes[,7], feature))
+colnames(Hibgff_from_RefSeq) = c("GeneID", "Chr", "Start", "End", "Strand")
+Hibgff_from_RefSeq$GeneID = as.character(Hibgff_from_RefSeq$GeneID)
+
+for (i in 1:nrow(Hibgff_from_RefSeq)){
+ if (is.na(RefSeq_gff.genes$OldLocusTag[i])=="FALSE"){
+   Hibgff_from_RefSeq$GeneID[i] = RefSeq_gff.genes$OldLocusTag[i]
+ }
+}
+
+write.table(Hibgff_from_RefSeq, "~/Dropbox/Hib_Data/Hib_annotation_genes_from_RefSeq.txt", sep = "\t", col.names = TRUE, row.names = FALSE)
+#Hib_annotation_genes.gff=gffRead("Hib_annotation_genes.gff", nrows = -1)
+```
+
+# use featurecounts to count reads form all .sam files
+```{r }
+system("featureCounts −−verbose -T 32 -p -B -t gene -g GeneID -a Hib_annotation_genes_from_RefSeq.gff -G GCA_000210875.1_ASM21087v1_genomic.fna -o Hib_Hisat2_Featurecounts_count_table.txt S0S01B01_hib_hisat.sam S0S01B02_hib_hisat.sam S0S01B03_hib_hisat.sam S0S01B04_hib_hisat.sam S0S02B01_hib_hisat.sam S0S02B02_hib_hisat.sam S0S02B03_hib_hisat.sam S0S02B04_hib_hisat.sam S0S03B01_hib_hisat.sam S0S03B02_hib_hisat.sam S0S03B03_hib_hisat.sam S0S03B04_hib_hisat.sam S0S04B01_hib_hisat.sam S0S04B02_hib_hisat.sam S0S04B03_hib_hisat.sam S0S04B04_hib_hisat.sam S0S05B01_hib_hisat.sam S0S05B02_hib_hisat.sam S0S05B03_hib_hisat.sam S0S05B04_hib_hisat.sam S0S06B01_hib_hisat.sam S0S06B02_hib_hisat.sam S0S06B03_hib_hisat.sam S0S06B04_hib_hisat.sam")
+```
+
+```{r }
+
+```
+
+```{r }
+
+```
+
+```{r }
+
+```
+
+```{r }
+
+```
+
+```{r }
+
+```
+
+```{r }
+
+```
+
+```{r }
+
+```
+
+
+```{r }
+
+```
+

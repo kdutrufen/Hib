@@ -1,0 +1,24 @@
+# -a -> Provide  name  of  an  annotation  file.   See -F option  for  file format.  Gzipped file is accepted.
+# -B -> If specified, only fragments that have both ends successfully aligned  will  be  considered  for  summarization.   This  option should be used together with -p (or isPairedEnd in Rsubread featureCounts )
+# -g < string > -> Specify the attribute type used to group features (eg.  exons) into meta-features (eg.  genes) when GTF annotation is pro- vided.  ‘gene id’ by default.  This attribute type is usually the gene identifier.   This argument is useful for the meta-feature level summarization.
+# -G -> Provide the name of a FASTA-format file that contains the reference sequences used in read mapping that produced the provided  SAM/BAM  files.   This  optional  argument  can  be used with ’-J’ option to improve read counting for junctions. 
+# -o < string > -> Give  the  name  of  the  output  file.   The  output  file  contains the number of reads assigned to each meta-feature (or each feature if -f is specified). Note that the featureCounts function in Rsubread does  not  use  this  parameter.   It  returns  a list object including read summarization results and other data.
+# -p -> If specified, fragments (or templates) will be counted instead of reads.  This option is only applicable for paired-end reads.
+# -t < string > -> Specify the feature type.  Only rows which have the matched feature type in the provided GTF annotation file will be included for read counting.  ‘exon’ by default.
+# -T < int > -> Number of the threads.  The value should be between 1 and 32.  1 by default.
+# −−verbose -> Output verbose information for debugging such as unmatched chromosomes/contigs between reads and annotation.
+
+featureCounts −−verbose -T 32 -p -B -t gene -g Name -a Hib_annotation_genes_from_RefSeq.gff -G GCA_000210875.1_ASM21087v1_genomic.fna -o Hib_Hisat2_Featurecounts_count_table.txt S01B01_hib_hisat.sam S01B02_hib_hisat.sam S01B03_hib_hisat.sam S01B04_hib_hisat.sam S02B01_hib_hisat.sam S02B02_hib_hisat.sam S02B03_hib_hisat.sam S02B04_hib_hisat.sam S03B01_hib_hisat.sam S03B02_hib_hisat.sam S03B03_hib_hisat.sam S03B04_hib_hisat.sam S04B01_hib_hisat.sam S04B02_hib_hisat.sam S04B03_hib_hisat.sam S04B04_hib_hisat.sam S05B01_hib_hisat.sam S05B02_hib_hisat.sam S05B03_hib_hisat.sam S05B04_hib_hisat.sam S06B01_hib_hisat.sam S06B02_hib_hisat.sam S06B03_hib_hisat.sam S06B04_hib_hisat.sam
+
+/projects/Tools/subread-1.6.2-Linux-x86_64/bin/featureCounts --verbose -T 32 -p -B -t gene -g Name -a GCF_000210875.1_ASM21087v1_genomic.gff -G GCA_000210875.1_ASM21087v1_genomic.fna -o Hib_Hisat2_Featurecounts_count_table_from_BAM_files.txt S01B01_hib_hisat_sorted.bam S01B02_hib_hisat_sorted.bam S01B03_hib_hisat_sorted.bam S01B04_hib_hisat_sorted.bam S02B01_hib_hisat_sorted.bam S02B02_hib_hisat_sorted.bam S02B03_hib_hisat_sorted.bam S02B04_hib_hisat_sorted.bam S03B01_hib_hisat_sorted.bam S03B02_hib_hisat_sorted.bam S03B03_hib_hisat_sorted.bam S03B04_hib_hisat_sorted.bam S04B01_hib_hisat_sorted.bam S04B02_hib_hisat_sorted.bam S04B03_hib_hisat_sorted.bam S04B04_hib_hisat_sorted.bam S05B01_hib_hisat_sorted.bam S05B02_hib_hisat_sorted.bam S05B03_hib_hisat_sorted.bam S05B04_hib_hisat_sorted.bam S06B01_hib_hisat_sorted.bam S06B02_hib_hisat_sorted.bam S06B03_hib_hisat_sorted.bam S06B04_hib_hisat_sorted.bam
+
+
+
+
+
+
+
+
+
+/projects/Tools/subread-1.6.2-Linux-x86_64/bin/featureCounts --verbose -T 32 -p -B -t gene -g Name -a GCF_000210875.1_ASM21087v1_genomic.gff -G GCA_000210875.1_ASM21087v1_genomic.fna -o Hib_Hisat2_Featurecounts_count_table.txt S01B01_hib_hisat.sam S01B02_hib_hisat.sam S01B03_hib_hisat.sam S01B04_hib_hisat.sam S02B01_hib_hisat.sam S02B02_hib_hisat.sam S02B03_hib_hisat.sam S02B04_hib_hisat.sam S03B01_hib_hisat.sam S03B02_hib_hisat.sam S03B03_hib_hisat.sam S03B04_hib_hisat.sam S04B01_hib_hisat.sam S04B02_hib_hisat.sam S04B03_hib_hisat.sam S04B04_hib_hisat.sam S05B01_hib_hisat.sam S05B02_hib_hisat.sam S05B03_hib_hisat.sam S05B04_hib_hisat.sam S06B01_hib_hisat.sam S06B02_hib_hisat.sam S06B03_hib_hisat.sam S06B04_hib_hisat.sam
+

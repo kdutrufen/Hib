@@ -1,0 +1,174 @@
+---
+title: "HISAT2_"
+author: "Carlos Eduardo Madureira Tufen"
+date: "9 de junho de 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Downlolad Hib gff from Refseq
+```{r }
+system("time wget ftp://ftp.ncbi.nlm.nih.gov/genomes/refseq/bacteria/Haemophilus_influenzae/latest_assembly_versions/GCF_000210875.1_ASM21087v1/GCF_000210875.1_ASM21087v1_genomic.gff.gz")
+```
+
+# Downlolad Hib gff from Refseq
+```{r }
+system("time wget ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/210/875/GCF_000210875.1_ASM21087v1/GCF_000210875.1_ASM21087v1_genomic.gff.gz")
+```
+
+# Downlolad Hib gff from Genbank
+```{r }
+system("time wget ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/210/875/GCA_000210875.1_ASM21087v1/GCA_000210875.1_ASM21087v1_genomic.gff.gz")
+```
+
+# Downlolad Hib fasta from Refseq
+```{r }
+system("time wget ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/210/875/GCF_000210875.1_ASM21087v1/GCF_000210875.1_ASM21087v1_genomic.fna.gz")
+```
+
+# Downlolad Hib fasta from Genbank
+```{r }
+system("time wget ftp://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/210/875/GCA_000210875.1_ASM21087v1/GCA_000210875.1_ASM21087v1_genomic.fna.gz")
+```
+
+# build a HISAT2 index, which will be named hib_tran
+# usage: hisat2-build [options]* <reference_in> <ht2_base>
+# <reference_in> -> A comma-separated list of FASTA files containing the reference sequences to be aligned to
+# <ht2_base> -> The basename of the index files to write. By default, hisat2-build writes files named NAME.1.ht2, NAME.2.ht2, NAME.3.ht2, NAME.4.ht2, NAME.5.ht2, NAME.6.ht2, NAME.7.ht2, and NAME.8.ht2 where NAME is <ht2_base>.
+```{r }
+system("time hisat2-build GCA_000210875.1_ASM21087v1_genomic.fna.gz hib_tran")
+```
+
+# Check wether all 8 indices were built
+```{r }
+system("ls -l hib_tran*") 
+```
+
+# Align the RNA-seq reads to the genome
+```{r }
+# -p -> The -p option causes HISAT2 to launch a specified number of parallel search threads
+# --dta -> --downstream-transcriptome-assembly -> With this option, HISAT2 requires longer anchor lengths for de novo discovery of splice sites. This leads to fewer alignments with short-anchors, which helps transcript assemblers improve significantly in computation and memory usage.
+# -x <hisat2-idx> -> The basename of the index for the reference genome. The basename is the name of any of the index files up to but not including the final .1.ht2 / etc. hisat2 looks for the specified index first in the current directory, then in the directory specified in the HISAT2_INDEXES environment variable.
+# --no-unal -> Suppress SAM records for reads that failed to align.
+# --un-conc-gz <path> -> Write paired-end reads that fail to align concordantly to file(s) at <path>. These reads correspond to the SAM records with the FLAGS 0x4 bit set and either the 0x40 or 0x80 bit set (depending on whether it's mate #1 or #2). .1 and .2 strings are added to the filename to distinguish which file contains mate #1 and mate #2.
+
+system("for f in *_r1_good_clean.common.fastq.gz;  do echo ${f}; done;")
+
+system("for f in `ls *.fastq.gz | sed 's/_r[12]_good_clean.fastq.gz//g' | sort -u`
+do
+time hisat2 -p 8 --dta -x hib_tran --no-unal --un-conc-gz ${f}.unmapped.fq --fr -1 ${f}_r1_good_clean.common.fastq.gz -2 ${f}_r2_good_clean.common.fastq.gz -S ${f}_hib_hisat.bam
+done
+")
+
+system("time hisat2 -p 8 --dta -x hib_tran --no-unal --un-conc-gz S01B01_hib.unmapped.fq --fr -1 /home/carlos/Documentos/ProcessedData/HibPP061602h_CAGATC_r1_good_clean.common.fastq.gz -2 /home/carlos/Documentos/ProcessedData/HibPP061602h_CAGATC_r2_good_clean.common.fastq.gz -S S01B01_hib_hisat.sam")
+system("time hisat2 -p 8 --dta -x hib_tran --no-unal --un-conc-gz S01B02_hib.unmapped.fq --fr -1 /home/carlos/Documentos/ProcessedData/HibPP071602h_ATGTCA_r1_good_clean.common.fastq.gz -2 /home/carlos/Documentos/ProcessedData/HibPP071602h_ATGTCA_r2_good_clean.common.fastq.gz -S S01B02_hib_hisat.sam")
+system("time hisat2 -p 8 --dta -x hib_tran --no-unal --un-conc-gz S01B03_hib.unmapped.fq --fr -1 /home/carlos/Documentos/ProcessedData/HibPP081602h_ATCACG_r1_good_clean.common.fastq.gz -2 /home/carlos/Documentos/ProcessedData/HibPP081602h_ATCACG_r2_good_clean.common.fastq.gz -S S01B03_hib_hisat.sam")
+system("time hisat2 -p 8 --dta -x hib_tran --no-unal --un-conc-gz S01B04_hib.unmapped.fq --fr -1 /home/carlos/Documentos/ProcessedData/HibPP021702h_GTGGCC_r1_good_clean.common.fastq.gz -2 /home/carlos/Documentos/ProcessedData/HibPP021702h_GTGGCC_r2_good_clean.common.fastq.gz -S S01B04_hib_hisat.sam")
+
+system("time hisat2 -p 8 --dta -x hib_tran --no-unal --un-conc-gz S02B01_hib.unmapped.fq --fr -1 /home/carlos/Documentos/ProcessedData/HibPP061608h_CTTGTA_r1_good_clean.common.fastq.gz -2 /home/carlos/Documentos/ProcessedData/HibPP061608h_CTTGTA_r2_good_clean.common.fastq.gz -S S02B01_hib_hisat.sam")
+system("time hisat2 -p 8 --dta -x hib_tran --no-unal --un-conc-gz S02B02_hib.unmapped.fq --fr -1 /home/carlos/Documentos/ProcessedData/HibPP071608h_CCGTCC_r1_good_clean.common.fastq.gz -2 /home/carlos/Documentos/ProcessedData/HibPP071608h_CCGTCC_r2_good_clean.common.fastq.gz -S S02B02_hib_hisat.sam")
+system("time hisat2 -p 8 --dta -x hib_tran --no-unal --un-conc-gz S02B03_hib.unmapped.fq --fr -1 /home/carlos/Documentos/ProcessedData/HibPP081608h_TTAGGC_r1_good_clean.common.fastq.gz -2 /home/carlos/Documentos/ProcessedData/HibPP081608h_TTAGGC_r2_good_clean.common.fastq.gz -S S02B03_hib_hisat.sam")
+system("time hisat2 -p 8 --dta -x hib_tran --no-unal --un-conc-gz S02B04_hib.unmapped.fq --fr -1 /home/carlos/Documentos/ProcessedData/HibPP021708h_GTTTCG_r1_good_clean.common.fastq.gz -2 /home/carlos/Documentos/ProcessedData/HibPP021708h_GTTTCG_r2_good_clean.common.fastq.gz -S S02B04_hib_hisat.sam")
+
+system("time hisat2 -p 8 --dta -x hib_tran --no-unal --un-conc-gz S03B01_hib.unmapped.fq --fr -1 /home/carlos/Documentos/ProcessedData/HibPP061611h_AGTTCC_r1_good_clean.common.fastq.gz -2 /home/carlos/Documentos/ProcessedData/HibPP061611h_AGTTCC_r2_good_clean.common.fastq.gz -S S03B01_hib_hisat.sam")
+system("time hisat2 -p 8 --dta -x hib_tran --no-unal --un-conc-gz S03B02_hib.unmapped.fq --fr -1 /home/carlos/Documentos/ProcessedData/HibPP071610h_GTCCGC_r1_good_clean.common.fastq.gz -2 /home/carlos/Documentos/ProcessedData/HibPP071610h_GTCCGC_r2_good_clean.common.fastq.gz -S S03B02_hib_hisat.sam")
+system("time hisat2 -p 8 --dta -x hib_tran --no-unal --un-conc-gz S03B03_hib.unmapped.fq --fr -1 /home/carlos/Documentos/ProcessedData/HibPP081610h_ACTTGA_r1_good_clean.common.fastq.gz -2 /home/carlos/Documentos/ProcessedData/HibPP081610h_ACTTGA_r2_good_clean.common.fastq.gz -S S03B03_hib_hisat.sam")
+system("time hisat2 -p 8 --dta -x hib_tran --no-unal --un-conc-gz S03B04_hib.unmapped.fq --fr -1 /home/carlos/Documentos/ProcessedData/HibPP021710h_CGTACG_r1_good_clean.common.fastq.gz -2 /home/carlos/Documentos/ProcessedData/HibPP021710h_CGTACG_r2_good_clean.common.fastq.gz -S S03B04_hib_hisat.sam")
+
+system("time hisat2 -p 8 --dta -x hib_tran --no-unal --un-conc-gz S04B01_hib.unmapped.fq --fr -1 /home/carlos/Documentos/ProcessedData/HibPP061610h_AGTCAA_r1_good_clean.common.fastq.gz -2 /home/carlos/Documentos/ProcessedData/HibPP061610h_AGTCAA_r2_good_clean.common.fastq.gz -S S04B01_hib_hisat.sam")
+system("time hisat2 -p 8 --dta -x hib_tran --no-unal --un-conc-gz S04B02_hib.unmapped.fq --fr -1 /home/carlos/Documentos/ProcessedData/HibPP071611h_GTGAAA_r1_good_clean.common.fastq.gz -2 /home/carlos/Documentos/ProcessedData/HibPP071611h_GTGAAA_r2_good_clean.common.fastq.gz -S S04B02_hib_hisat.sam")
+system("time hisat2 -p 8 --dta -x hib_tran --no-unal --un-conc-gz S04B03_hib.unmapped.fq --fr -1 /home/carlos/Documentos/ProcessedData/HibPP081611h_GATCAG_r1_good_clean.common.fastq.gz -2 /home/carlos/Documentos/ProcessedData/HibPP081611h_GATCAG_r2_good_clean.common.fastq.gz -S S04B03_hib_hisat.sam")
+system("time hisat2 -p 8 --dta -x hib_tran --no-unal --un-conc-gz S04B04_hib.unmapped.fq --fr -1 /home/carlos/Documentos/ProcessedData/HibPP021711h_GAGTGG_r1_good_clean.common.fastq.gz -2 /home/carlos/Documentos/ProcessedData/HibPP021711h_GAGTGG_r2_good_clean.common.fastq.gz -S S04B04_hib_hisat.sam")
+
+system("time hisat2 -p 8 --dta -x hib_tran --no-unal --un-conc-gz S05B01_hib.unmapped.fq --fr -1 /home/carlos/Documentos/ProcessedData/HibPP061615h_CGATGT_r1_good_clean.common.fastq.gz -2 /home/carlos/Documentos/ProcessedData/HibPP061615h_CGATGT_r2_good_clean.common.fastq.gz -S S05B01_hib_hisat.sam")
+system("time hisat2 -p 8 --dta -x hib_tran --no-unal --un-conc-gz S05B02_hib.unmapped.fq --fr -1 /home/carlos/Documentos/ProcessedData/HibPP071615h_ACAGTG_r1_good_clean.common.fastq.gz -2 /home/carlos/Documentos/ProcessedData/HibPP071615h_ACAGTG_r2_good_clean.common.fastq.gz -S S05B02_hib_hisat.sam")
+system("time hisat2 -p 8 --dta -x hib_tran --no-unal --un-conc-gz S05B03_hib.unmapped.fq --fr -1 /home/carlos/Documentos/ProcessedData/HibPP081615h_TAGCTT_r1_good_clean.common.fastq.gz -2 /home/carlos/Documentos/ProcessedData/HibPP081615h_TAGCTT_r2_good_clean.common.fastq.gz -S S05B03_hib_hisat.sam")
+system("time hisat2 -p 8 --dta -x hib_tran --no-unal --un-conc-gz S05B04_hib.unmapped.fq --fr -1 /home/carlos/Documentos/ProcessedData/HibPP021715h_ACTGAT_r1_good_clean.common.fastq.gz -2 /home/carlos/Documentos/ProcessedData/HibPP021715h_ACTGAT_r2_good_clean.common.fastq.gz -S S05B04_hib_hisat.sam")
+
+system("time hisat2 -p 8 --dta -x hib_tran --no-unal --un-conc-gz S06B01_hib.unmapped.fq --fr -1 /home/carlos/Documentos/ProcessedData/HibPP061620h_TGACCA_r1_good_clean.common.fastq.gz -2 /home/carlos/Documentos/ProcessedData/HibPP061620h_TGACCA_r2_good_clean.common.fastq.gz -S S06B01_hib_hisat.sam")
+system("time hisat2 -p 8 --dta -x hib_tran --no-unal --un-conc-gz S06B02_hib.unmapped.fq --fr -1 /home/carlos/Documentos/ProcessedData/HibPP071620h_GCCAAT_r1_good_clean.common.fastq.gz -2 /home/carlos/Documentos/ProcessedData/HibPP071620h_GCCAAT_r2_good_clean.common.fastq.gz -S S06B02_hib_hisat.sam")
+system("time hisat2 -p 8 --dta -x hib_tran --no-unal --un-conc-gz S06B03_hib.unmapped.fq --fr -1 /home/carlos/Documentos/ProcessedData/HibPP081620h_GGCTAC_r1_good_clean.common.fastq.gz -2 /home/carlos/Documentos/ProcessedData/HibPP081620h_GGCTAC_r2_good_clean.common.fastq.gz -S S06B03_hib_hisat.sam")
+system("time hisat2 -p 8 --dta -x hib_tran --no-unal --un-conc-gz S06B04_hib.unmapped.fq --fr -1 /home/carlos/Documentos/ProcessedData/HibPP021720h_ATTCCT_r1_good_clean.common.fastq.gz -2 /home/carlos/Documentos/ProcessedData/HibPP021720h_ATTCCT_r2_good_clean.common.fastq.gz -S S06B04_hib_hisat.sam")
+
+```
+
+# Sort and convert the SAM files to BAM
+```{r }
+# sort -> Sort alignments by leftmost coordinates, or by read name when -n is used. An appropriate @HD-SO sort order header tag will be added or an existing one updated if necessary.
+# The sorted output is written to standard output by default, or to the specified file (out.bam) when -o is used.
+# Sorted BAM is a useful format because the alignments are (a) compressed, which is convenient for long-term storage, and (b) sorted, which is conveneint for variant discovery
+# @ -> the -@ option can be used to allocate additional threads to be used for compression
+
+system("time samtools sort -@ 2 -o S01B01_hib_hisat_sorted.bam S01B01_hib_hisat.sam")
+system("time samtools sort -@ 2 -o S01B02_hib_hisat_sorted.bam S01B02_hib_hisat.sam")
+system("time samtools sort -@ 2 -o S01B03_hib_hisat_sorted.bam S01B03_hib_hisat.sam")
+system("time samtools sort -@ 2 -o S01B04_hib_hisat_sorted.bam S01B04_hib_hisat.sam")
+
+system("time samtools sort -@ 2 -o S02B01_hib_hisat_sorted.bam S02B01_hib_hisat.sam")
+system("time samtools sort -@ 2 -o S02B02_hib_hisat_sorted.bam S02B02_hib_hisat.sam")
+system("time samtools sort -@ 2 -o S02B03_hib_hisat_sorted.bam S02B03_hib_hisat.sam")
+system("time samtools sort -@ 2 -o S02B04_hib_hisat_sorted.bam S02B04_hib_hisat.sam")
+
+system("time samtools sort -@ 2 -o S03B01_hib_hisat_sorted.bam S03B01_hib_hisat.sam")
+system("time samtools sort -@ 2 -o S03B02_hib_hisat_sorted.bam S03B02_hib_hisat.sam")
+system("time samtools sort -@ 2 -o S03B03_hib_hisat_sorted.bam S03B03_hib_hisat.sam")
+system("time samtools sort -@ 2 -o S03B04_hib_hisat_sorted.bam S03B04_hib_hisat.sam")
+
+system("time samtools sort -@ 2 -o S04B01_hib_hisat_sorted.bam S04B01_hib_hisat.sam")
+system("time samtools sort -@ 2 -o S04B02_hib_hisat_sorted.bam S04B02_hib_hisat.sam")
+system("time samtools sort -@ 2 -o S04B03_hib_hisat_sorted.bam S04B03_hib_hisat.sam")
+system("time samtools sort -@ 2 -o S04B04_hib_hisat_sorted.bam S04B04_hib_hisat.sam")
+
+system("time samtools sort -@ 2 -o S05B01_hib_hisat_sorted.bam S05B01_hib_hisat.sam")
+system("time samtools sort -@ 2 -o S05B02_hib_hisat_sorted.bam S05B02_hib_hisat.sam")
+system("time samtools sort -@ 2 -o S05B03_hib_hisat_sorted.bam S05B03_hib_hisat.sam")
+system("time samtools sort -@ 2 -o S05B04_hib_hisat_sorted.bam S05B04_hib_hisat.sam")
+
+system("time samtools sort -@ 2 -o S06B01_hib_hisat_sorted.bam S06B01_hib_hisat.sam")
+system("time samtools sort -@ 2 -o S06B02_hib_hisat_sorted.bam S06B02_hib_hisat.sam")
+system("time samtools sort -@ 2 -o S06B03_hib_hisat_sorted.bam S06B03_hib_hisat.sam")
+system("time samtools sort -@ 2 -o S06B04_hib_hisat_sorted.bam S06B04_hib_hisat.sam")
+
+```
+
+# Count reads
+```{r }
+# -a -> Provide  name  of  an  annotation  file.   See -F option  for  file format.  Gzipped file is accepted.
+# -B -> If specified, only fragments that have both ends successfully aligned  will  be  considered  for  summarization.   This  option should be used together with -p (or isPairedEnd in Rsubread featureCounts 
+# )
+# -G -> Provide the name of a FASTA-format file that contains the reference sequences used in read mapping that produced the provided  SAM/BAM  files.   This  optional  argument  can  be used with ’-J’ option to improve read counting for junctions. 
+# -o < string > -> Give  the  name  of  the  output  file.   The  output  file  contains the number of reads assigned to each meta-feature (or each feature if -f is specified). Note that the featureCounts function in Rsubread does  not  use  this  parameter.   It  returns  a list object including read summarization results and other data.
+# -p -> If specified, fragments (or templates) will be counted instead of reads.  This option is only applicable for paired-end reads.
+# -t < string > -> Specify the feature type.  Only rows which have the matched feature type in the provided GTF annotation file will be included for read counting.  ‘exon’ by default.
+# -T < int > -> Number of the threads.  The value should be between 1 and 32.  1 by default.
+# −−verbose -> Output verbose information for debugging such as unmatched chromosomes/contigs between reads and annotation.
+
+system("featureCounts -T 32 -p -B -t gene -g gene_id -a annotation.gtf -o counts.txt mapping_results_PE.bam")
+```
+
+```{r }
+
+```
+
+```{r }
+
+```
+
+```{r }
+
+```
+
+```{r }
+
+```
+
+```{r }
+
+```
+
+```{r }
+
+```
