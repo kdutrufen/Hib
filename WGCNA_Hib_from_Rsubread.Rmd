@@ -26,7 +26,7 @@ setwd("~/Dropbox/Hib")
 library("readr")
 #Haemophilus_influenzae_10810_GCF_000210875_1_proteintable <- read_delim("~/Dropbox/Script/Haemophilus_influenzae_10810.GCF_000210875.1.proteintable.txt", "\t", escape_double = FALSE, trim_ws = TRUE)
 
-Haemophilus_influenzae_10810_GCF_000210875_1_proteintable <- read_delim("/home/jaque/Downloads/Haemophilus_influenzae_10810.GCF_000210875.1.proteintable.txt", "\t", escape_double = FALSE, trim_ws = TRUE)
+Haemophilus_influenzae_10810_GCF_000210875_1_proteintable <- read_delim("~/Dropbox/Hib_Data/Haemophilus_influenzae_10810.GCF_000210875.1.proteintable.txt", "\t", escape_double = FALSE, trim_ws = TRUE)
 Hib_proteins = as.data.frame(Haemophilus_influenzae_10810_GCF_000210875_1_proteintable)
 ```
 
@@ -34,7 +34,7 @@ Hib_proteins = as.data.frame(Haemophilus_influenzae_10810_GCF_000210875_1_protei
 ```{r, message=FALSE}
 library('ballgown')
 #RefSeqgff <- gffRead("~/Dropbox/Script/GCF_000210875.1_ASM21087v1_genomic.gff")
-RefSeqgff <- gffRead("/home/jaque/Downloads/GCF_000210875.1_ASM21087v1_genomic.gff")
+RefSeqgff <- gffRead("~/Dropbox/Hib_Data/GCF_000210875.1_ASM21087v1_genomic.gff")
 RefSeqgff.genes <- RefSeqgff[RefSeqgff[,3]=="gene",]
 RefSeqgff.genes$Name <- getAttributeField(RefSeqgff.genes$attributes, "Name", attrsep = "; ")
 RefSeqgff.genes$ID <- getAttributeField(RefSeqgff.genes$attributes, "ID", attrsep = "; ")
@@ -47,7 +47,7 @@ RefSeqgff.genes$product <- Hib_proteins$product[match(RefSeqgff.genes$Name, Hib_
 ```{r}
 #Rsubread_Count_Renamed_noRNA_table = read.csv("~/Dropbox/Dados_Alinhamento/Rsubread_featurecounts/Rsubread_Count_Table_Renamed_without_rRNA.csv", header = TRUE, sep = "\t", row.names = 1)
 
-Rsubread_Count_Renamed_noRNA_table = read.csv("/home/jaque/Downloads/Rsubread_Count_Table_Renamed_without_rRNA.csv", header = TRUE, sep = "\t", row.names = 1)
+Rsubread_Count_Renamed_noRNA_table = read.csv("~/Dropbox/Hib_Data/Rsubread_Count_Table_Renamed_without_rRNA.csv", header = TRUE, sep = "\t", row.names = 1)
 
 #Hib_Full_Rsubread_Trinity_salmon_without_rRNA = read.csv("~/Dropbox/Dados_Alinhamento/Rsubread_featurecounts/Hib_Full_Rsubread_Trinity_salmon_without_rRNA.csv", header = TRUE, sep = "\t", row.names = 1)
 
@@ -1151,8 +1151,8 @@ for (i in 1:length(moduleblocks)){top[[i]] = (rank(-IMConn[[i]]) <= nTop)}
 #HibPP = lapply(6:8, function(i){read.csv(paste0("~/Dropbox/Script/HibPP0", i, "-16.csv"), dec = ",",  sep = "\t", header = TRUE, quote = "")})
 #HibPP[[4]] = read.csv("~/Dropbox/Script/HibPP02-17.csv", dec = ",", header=TRUE, sep="\t", quote="")
 
-HibPP = lapply(6:8, function(i){read.csv(paste0("/home/jaque/Downloads/HibPP0", i, "-16.csv"), dec = ",",  sep = "\t", header = TRUE, quote = "")})
-HibPP[[4]] = read.csv("/home/jaque/Downloads/HibPP02-17.csv", dec = ",", header=TRUE, sep="\t", quote="")
+HibPP = lapply(6:8, function(i){read.csv(paste0("~/Dropbox/Hib_Data/HibPP0", i, "-16.csv"), dec = ",",  sep = "\t", header = TRUE, quote = "")})
+HibPP[[4]] = read.csv("~/Dropbox/Hib_Data/HibPP02-17.csv", dec = ",", header=TRUE, sep="\t", quote="")
 points = c(3, 9, 11, 12, 16, 21)
 cores = c("blue", "red", "black", "purple", "magenta", "darkblue")
 

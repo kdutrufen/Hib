@@ -13,6 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Set dir
 ```{r, message = FALSE}
+rm(list=ls())
 setwd("~/Dropbox/Script")
 ```
 
@@ -21,8 +22,8 @@ setwd("~/Dropbox/Script")
 RsubreadCountData = read.csv("~/Dropbox/Dados_Alinhamento/Rsubread_featurecounts/Rsubread_Count_Table_Renamed_without_rRNA.csv", header=TRUE, sep = "\t", row.names = 1)
 countData = RsubreadCountData
 
-THRESHOLD <- 0.01
-LFC = 2
+THRESHOLD <- 0.05
+LFC = 1
 ```
 
 # Sets design
@@ -365,33 +366,53 @@ EEgenes_edgeR = EEgenes_edgeR[order(EEgenes_edgeR$LFC_sum),]
 
 # ANOVA from Flavio Lichtenstein
 ```{r, fig.width=7, fig.height=14}
-filter.anova <- function(df, groups, verbose=T) {
- if (verbose) cat("Calculating ANOVA ...\n")
- fgroups = factor(groups)
- # row = counts.per.million[1,]
- # for (i in 1:nrow(counts.per.million)) {
- #   row = counts.per.million[i,]
- #   df = data.frame(reads = as.numeric(row), group=groups )
- #   fit = lm(reads ~ fgroups, data = df)
- #   t = anova(fit)
- #   cat(paste(t$`Pr(>F)`[1], "\n"))
+# filter.anova <- function(df, groups, verbose=T) {
+#  if (verbose) cat("Calculating ANOVA ...\n")
+#  fgroups = factor(groups)
+#  # row = counts.per.million[1,]
+#  # for (i in 1:nrow(counts.per.million)) {
+#  #   row = counts.per.million[i,]
+#  #   df = data.frame(reads = as.numeric(row), group=groups )
+#  #   fit = lm(reads ~ fgroups, data = df)
+#  #   t = anova(fit)
+#  #   cat(paste(t$`Pr(>F)`[1], "\n"))
+# 
+#  #  }
+# 
+# testList = apply(as.matrix(df),1,function(row) {
+#    df = data.frame(reads = as.numeric(row), group=groups )
+#    fit = lm(reads ~ fgroups, data = df)
+#    anova(fit)$`Pr(>F)`[1]
+#  })
+#  return (testList)
+# }
+# 
+# df = as.data.frame(countData)
+# groups = as.factor(HibDesign1$condition)
+# 
+# allgenesvar = filter.anova(df = df, groups = groups)
+# 
+# allgenesvar1 = sort(allgenesvar, decreasing = TRUE)
+```
 
- #  }
+# LFC for least variable genes in Hib RNA-Seq
+```{r}
+# leastvargenes = c("HIB_06910", "HIB_00220", "HIB_13430", "HIB_15860", "HIB_01970", "HIB_RS09535", "HIB_16610", "HIB_18560", "HIB_06040", "HIB_17490", "HIB_10850", "HIB_05580", "HIB_14140", "HIB_10100", "HIB_04690", "HIB_12760", "HIB_00230")
 
-testList = apply(as.matrix(df),1,function(row) {
-   df = data.frame(reads = as.numeric(row), group=groups )
-   fit = lm(reads ~ fgroups, data = df)
-   anova(fit)$`Pr(>F)`[1]
- })
- return (testList)
-}
-
-df = as.data.frame(countData)
-groups = as.factor(HibDesign1$condition)
-
-allgenesvar = filter.anova(df = df, groups = groups)
-
-allgenesvar1 = sort(allgenesvar, decreasing = TRUE)
+# leastvargenes = least_var
+# 
+# LeastVarDF = data.frame(S01xS02 = topDE[[1]]$table[leastvargenes,]$logFC)
+# LeastVarDF$S02xS03 = topDE[[6]]$table[leastvargenes,]$logFC
+# LeastVarDF$S03xS04 = topDE[[10]]$table[leastvargenes,]$logFC
+# LeastVarDF$S04xS05 = topDE[[13]]$table[leastvargenes,]$logFC
+# LeastVarDF$S05xS06 = topDE[[15]]$table[leastvargenes,]$logFC
+# rownames(LeastVarDF) = leastvargenes
+# 
+# AllGenesFC_DF = data.frame(S01xS02 = topDE[[1]]$table)
+# AllGenesFC_DF$S02xS03 = topDE[[6]]$table
+# AllGenesFC_DF$S03xS04 = topDE[[10]]$table
+# AllGenesFC_DF$S04xS05 = topDE[[13]]$table
+# AllGenesFC_DF$S05xS06 = topDE[[15]]$table
 ```
 
 
@@ -710,7 +731,7 @@ for (i in 1:nSets){efit[[i]] <- eBayes(vfit1[[i]], robust=TRUE)}
 
 #efit <- eBayes(vfit1, robust=TRUE)
 topgenes = vector(mode = "list", length = nSets)
-for (i in 1:nSets){topgenes[[i]] <- toptable(efit[[i]], adjust="fdr", lfc=2, p.value=0.01, number=Inf)}
+for (i in 1:nSets){topgenes[[i]] <- topTable(efit[[i]], adjust="fdr", lfc=2, p.value=0.01, number=Inf)}
 ```
 
 # Find equally expressed genes
@@ -756,11 +777,16 @@ for (i in 1:nSets){de.common[[i]] <-which(dt[[i]][,1]!=0)}
 # Which genes are DE
 ```{r}
 topgenes = vector(mode = "list", length = nSets)
-for (i in 1:nSets){topgenes[[i]] <- toptable(efit[[i]], adjust="fdr", lfc=2, p.value=0.01, number=Inf)}
+for (i in 1:nSets){topgenes[[i]] <- topTable(efit[[i]], adjust="fdr", lfc=2, p.value=0.01, number=Inf)}
+
+allgenes_voom = vector(mode = "list", length = nSets)
+for (i in 1:nSets){allgenes_voom[[i]] <- topTable(efit[[i]], adjust="fdr", number=Inf)}
 
 #reslimma = vector(mode = "list", length = nSets)
 #for (i in 1:nSets){reslimma[[i]]=which(dt[,i]!=0)} 
 ```
+
+
 
 # DE gene names
 ```{r}
@@ -829,9 +855,64 @@ mar=c(5.1,4.1,4.1,2.1)
 
 yy = compareCluster(TrueDE_df, fun="enrichKEGG", organism="hiu", pvalueCutoff=0.05)
 
+KEGG_Enrichment_Results = data.frame(yy)
+
 plot(yy, type="dot")
 
 ```
+
+# Interesting genes lfc for RT-PCR
+```{r}
+options(digits=2)
+Genes = c("HIB_11490", "HIB_15550", "HIB_10030", "HIB_03010", "HIB_10200", "HIB_02800", "HIB_15120", "HIB_14460", "HIB_13360", "HIB_09540", "HIB_18460",
+"HIB_12580")
+Interesting_genes = data.frame( Genes = Genes, 
+                                edgeR_LFC_08hx02h = topDE[[1]][Genes,]$table$logFC,
+                                DESeq2_LFC_08hx02h = resOrdered[[1]][Genes,]$log2FoldChange,
+                                Voom_LFC_08hx02h = allgenes_voom[[1]][Genes,]$logFC,
+                                edgeR_LFC_10hx08h = topDE[[6]][Genes,]$table$logFC,
+                                DESeq2_LFC_10x08h = resOrdered[[6]][Genes,]$log2FoldChange,
+                                Voom_LFC_10hx08h = allgenes_voom[[6]][Genes,]$logFC,
+                                edgeR_LFC_11hx10h = topDE[[10]][Genes,]$table$logFC,
+                                DESeq2_LFC_11hx10h = resOrdered[[10]][Genes,]$log2FoldChange,
+                                Voom_LFC_11hx10h = allgenes_voom[[10]][Genes,]$logFC,
+                                edgeR_LFC_15hx11h = topDE[[13]][Genes,]$table$logFC,
+                                DESeq2_LFC_15hx11h = resOrdered[[13]][Genes,]$log2FoldChange,
+                                Voom_LFC_15hx11h = allgenes_voom[[13]][Genes,]$logFC,
+                                edgeR_LFC_20hx15h = topDE[[15]][Genes,]$table$logFC,
+                                DESeq2_LFC_20hx15h  = resOrdered[[15]][Genes,]$log2FoldChange,
+                                Voom_LFC_20hx15h = allgenes_voom[[15]][Genes,]$logFC)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+# Histogram
+```{r, message=FALSE}
+edgeR_hist = vector(mode = "list", length = nSets)
+for (i in 1:15){edgeR_hist[[i]] = hist(topDE[[i]]$table$logFC)}
+```
+
+# Barplot
+```{r, message=FALSE}
+library(ggplot2)
+edgeR_barplot = edgeR_barplot_DE = vector(mode = "list", length = nSets)
+for (i in 1:15){edgeR_barplot[[i]] = barplot(sort(topDE[[1]]$table$logFC, decreasing=TRUE))}
+
+for (i in 1:15){edgeR_barplot_DE[[i]] = barplot(sort(fdrsubtopDE[[i]]$logFC, decreasing=TRUE), names.arg=rownames(fdrsubtopDE[[i]]), las=2)}
+```
+
+
+
+
 
 # kegga
 ```{r, message=FALSE}
@@ -844,9 +925,6 @@ for (i in 1:nSets){topKEGGdown[[i]] = topKEGG(DEKegg[[i]] , n=10)}
 topKEGGup = vector(mode = "list", length = nSets)
 for (i in 1:nSets){topKEGGup[[i]] = topKEGG(DEKegg[[i]] , n=10)}
 ```
-
-
-
 
 # Venn Diagram
 ```{r, message=FALSE}
