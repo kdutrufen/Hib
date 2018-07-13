@@ -43,22 +43,70 @@ RefSeqgff.genes$Gene_length = RefSeqgff.genes$end-RefSeqgff.genes$start
 RefSeqgff.genes$product <- Hib_proteins$product[match(RefSeqgff.genes$Name, Hib_proteins$locustag)]
 ```
 
-# Read in matrix from Rsubread
-```{r}
-#Rsubread_Count_Renamed_noRNA_table = read.csv("~/Dropbox/Dados_Alinhamento/Rsubread_featurecounts/Rsubread_Count_Table_Renamed_without_rRNA.csv", header = TRUE, sep = "\t", row.names = 1)
+# Read in Hib Matrix form Rsubread alignment
+```{r }
+#Hib_CountData = read.csv("~/Dropbox/Hib_Data/Hib_Hisat2_featureCounts_table_countMultiMappingReads.txt", header=TRUE, sep = "\t", row.names = 1)
+library(readr)
+Hib_CountData <- as.data.frame(read_delim("~/Dropbox/Hib_Data/Hib_Hisat2_featureCounts_table_countMultiMappingReads.txt", "\t", escape_double = FALSE, trim_ws = TRUE, skip = 1))
 
-Rsubread_Count_Renamed_noRNA_table = read.csv("~/Dropbox/Hib_Data/Rsubread_Count_Table_Renamed_without_rRNA.csv", header = TRUE, sep = "\t", row.names = 1)
+library(stringr)
+# Remove rrf gene (ribosomal RNA)
+Hib_CountData = Hib_CountData[-which(str_detect(Hib_CountData$Geneid, "rrf")==TRUE),]
 
-#Hib_Full_Rsubread_Trinity_salmon_without_rRNA = read.csv("~/Dropbox/Dados_Alinhamento/Rsubread_featurecounts/Hib_Full_Rsubread_Trinity_salmon_without_rRNA.csv", header = TRUE, sep = "\t", row.names = 1)
+rownames(Hib_CountData) = Hib_CountData$Geneid
+Hib_CountData = Hib_CountData[,-c(1:6)]
+colnames(Hib_CountData) = c("S01B01", "S01B02", "S01B03", "S01B04", "S02B01", "S02B02", "S02B03", "S02B04", "S03B01", "S03B02", "S03B03", "S03B04", "S04B01", "S04B02", "S04B03", "S04B04", "S05B01", "S05B02", "S05B03", "S05B04", "S06B01", "S06B02", "S06B03", "S06B04")
+countData = Hib_CountData
 
-#Hib_Full_Rsubread_Trinity_salmon_without_rRNA = read.csv("C:/Users/3green/Dropbox/Dados_Alinhamento/Rsubread_featurecounts/Hib_Full_Rsubread_Trinity_salmon_without_rRNA.csv", header = TRUE, sep = "\t", row.names = 1)
-
-countData = Rsubread_Count_Renamed_noRNA_table
-#countData = Stringtie_Count_Renamed_noRNA_table
-#countData = cbind(countData[,1:3], countData[,5:7], countData[,9:11], countData[,13:15], countData[,17:19], countData[,21:23])
-head(countData)
+THRESHOLD <- 1
+LFC = 2
 ```
 
+# Sets design
+```{r }
+library('ballgown')
+RefSeq_gff <- gffRead("~/Dropbox/Hib_Data/GCF_000210875.1_ASM21087v1_genomic.gff")
+RefSeq_gff$Name <- getAttributeField(RefSeq_gff$attributes, "Name", attrsep = "; ")
+RefSeq_gff$ID <- getAttributeField(RefSeq_gff$attributes, "ID", attrsep = "; ")
+colnames(RefSeq_gff)
+
+get_Attribute_Field = function (x, field, attrsep = "; ") 
+{
+    s = strsplit(x, split = attrsep, fixed = TRUE)
+    sapply(s, function(atts) {
+        a = strsplit(atts, split = "=", fixed = TRUE)
+        m = match(field, sapply(a, "[", 1))
+        if (!is.na(m)) {
+            rv = a[[m]][2]
+        }
+        else {
+            rv = as.character(NA)
+        }
+        return(rv)
+    })
+}
+
+RefSeq_gff.genes <- RefSeq_gff[RefSeq_gff[,3]=="gene",]
+RefSeq_gff.genes$Name <- get_Attribute_Field(RefSeq_gff.genes$attributes, "Name", attrsep = ";")
+RefSeq_gff.genes$ID <- get_Attribute_Field(RefSeq_gff.genes$attributes, "ID", attrsep = ";")
+RefSeq_gff.genes$OldLocusTag <- get_Attribute_Field(RefSeq_gff.genes$attributes, "old_locus_tag", attrsep = ";")
+#RefSeq_gff.genes$OldLocusTag = make.unique(RefSeq_gff.genes$OldLocusTag)
+colnames(RefSeq_gff.genes)
+
+# Rename Hib genes to old locus tag (available at KEGG)
+for (i in 1:nrow(RefSeq_gff.genes)){
+  if (is.na(RefSeq_gff.genes$OldLocusTag[i])=="FALSE"){
+    rownames(Hib_CountData)[which(rownames(Hib_CountData)==RefSeq_gff.genes$Name[i])] = RefSeq_gff.genes$OldLocusTag[i]
+  }
+}
+
+Hib_CountData = Hib_CountData[ order(row.names(Hib_CountData)), ]
+
+library(stringr)
+# Remove ribosomal RNA
+Hib_CountData = Hib_CountData[-which(str_detect(rownames(Hib_CountData), "HIB_r")==TRUE),]
+countData = Hib_CountData
+```
 # Load packages
 ```{r, message=FALSE}
 library("WGCNA")
@@ -72,8 +120,7 @@ options(stringsAsFactors = FALSE)
 
 # Sets design
 ```{r }
-HibDesign1 = data.frame(row.names = colnames( countData ),
-                        condition = rep(c("S01", "S02", "S03", "S04", "S05", "S06"), each = 4))
+HibDesign1 = data.frame(row.names = colnames( countData ), condition = rep(c("S01", "S02", "S03", "S04", "S05", "S06"), each = 4))
 ```
 
 
@@ -81,7 +128,7 @@ HibDesign1 = data.frame(row.names = colnames( countData ),
 ```{r, message=FALSE}
 library("edgeR")
 library("RUVSeq")
-group=as.factor(HibDesign1[,1])
+group=as.factor(HibDesign1$condition)
 design <- model.matrix(~ 0 + group)
 colnames(design) <- levels(group)
 rownames(design) = colnames(countData)
@@ -180,7 +227,7 @@ abline(h = 1, col = "red") # Plot a line to show the cut
 
 # Determine cluster under the line
 ```{r}
-clust = cutreeStatic(sampleTree, cutHeight = 250000, minSize = 10)
+clust = cutreeStatic(sampleTree, cutHeight = 2500000, minSize = 10)
 table(clust)
 ```
 
@@ -231,13 +278,13 @@ par(mfrow = c(1,2))
 cex1 = 0.9
 
 # Scale-free topology fit index as a function of the soft-thresholding power
-plot(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2], xlab="Soft Threshold (potência)",ylab="Ajuste do Modelo de Topologia\n Sem Escala",type="n", main = paste("Independência de escala"))
-axis(side=2, at = c(0.0, 0.2, 0.4, 0.6, 0.8), labels = format(c(0.0, 0.2, 0.4, 0.6, 0.8), decimal.mark=","))
+plot(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2], xlab="Soft Threshold (power)",ylab="Scale Free Topology Model Fit",type="n", main = paste("Scale independence"))
+axis(side=2, at = c(0.0, 0.2, 0.4, 0.6, 0.8), labels = format(c(0.0, 0.2, 0.4, 0.6, 0.8), decimal.mark="."))
 text(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2], labels=powers,cex=cex1,col="red");
 # this line corresponds to using an R^2 cut-off of h
 abline(h=0.80,col="red")
 # Mean connectivity as a function of the soft-thresholding power
-plot(sft$fitIndices[,1], sft$fitIndices[,5], xlab="Soft Threshold (potência)",ylab="Conectividade Média", type="n", main = paste("Conectividade Média"))
+plot(sft$fitIndices[,1], sft$fitIndices[,5], xlab="Soft Threshold (power)",ylab="Mean Connectivity", type="n", main = paste("Mean Connectivity"))
 text(sft$fitIndices[,1], sft$fitIndices[,5], labels=powers, cex=cex1,col="red")
 ```
 
@@ -299,16 +346,16 @@ plot(geneTree, xlab="", sub="", main = "Gene clustering on TOM-based dissimilari
 
 # Minimum Module Size
 ```{r}
-minModuleSize = 40
-
-# minModuleSizetest = c(1:100)
+# minModuleSizetest = seq(from = 10, to = 50, by = 1)
 # dynamicModstest=vector()
 # 
 # for (i in 1:length(minModuleSizetest)){
-#   dynamicModstest[i] = cutreeDynamic(dendro = geneTree, distM = dissTOM, deepSplit = 4, pamRespectsDendro = FALSE, minClusterSize = minModuleSizetest[i])  
+#   dynamicModstest[i] = cutreeDynamic(dendro = geneTree, distM = dissTOM, deepSplit = 4, pamRespectsDendro = FALSE, minClusterSize = minModuleSizetest[i])
 # }
 # 
 # plot(minModuleSizetest, dynamicModstest)
+
+minModuleSize = 10
 ```
 
 
@@ -372,17 +419,15 @@ plot(METree, main = "Clustering of module eigengenes", xlab = "", sub = "")
 ```{r}
 MEDissThres = 0.25
 
-MEDissThrestest = seq(from = 0.05, to=0.50, by=0.05)
-mergetest = mergetesttablelength = vector()
+# MEDissThrestest = seq(from = 0.05, to=0.50, by=0.05)
+# mergetest = mergetesttablelength = vector()
+# 
+# for (i in 1:length(MEDissThrestest)){
+#   mergetest[i] = mergeCloseModules(datExpr, dynamicColors, cutHeight = MEDissThrestest[i], verbose = 3)
+#   mergetesttablelength[i] = length(table(mergetest[i]))
+# }
 
-for (i in 1:length(MEDissThrestest)){
-  mergetest[i] = mergeCloseModules(datExpr, dynamicColors, cutHeight = MEDissThrestest[i], verbose = 3)
-  mergetesttablelength[i] = length(table(mergetest[i]))
-}
-
-
-
-plot(MEDissThrestest, mergetesttablelength)
+# plot(MEDissThrestest, mergetesttablelength)
 
 #which(MEDiss <MEDissThres)
 #MEDiss[which(MEDiss <MEDissThres)]
@@ -447,306 +492,6 @@ for (i in 1:length(merge$newMEs)){moduleblocks[[i]] = as.matrix(moduleColors1[wh
 
 ```
 
-# Check if genes for polysaccharide synthesis are in the same module
-```{r, meddage=FALSE}
-# Polysaccharide polymerase (HIB_10030) (HIB_RS05310)
-for(i in 1:length(moduleblocks)){
-  if ("HIB_10030" %in% rownames(moduleblocks[[i]])==TRUE){
-    print(i)
-  }
-}
-
-# short-chain dehydrogenases/reductases family protein - ribitol-5-phosphate 2-dehydrogenase (NADP+) / D-ribitol-5-phosphate cytidylyltransferase (bcs1) (HIB_11690) (HIB_RS06115)
-for(i in 1:length(moduleblocks)){
-  if ("HIB_11690" %in% rownames(moduleblocks[[i]])==TRUE){
-    print(i)
-  }
-}
-
-# short-chain dehydrogenases/reductases family protein - ribitol-5-phosphate 2-dehydrogenase (NADP+) / D-ribitol-5-phosphate cytidylyltransferase (bcs1) (HIB_11840) (HIB_RS06180)
-for(i in 1:length(moduleblocks)){
-  if ("HIB_11840" %in% rownames(moduleblocks[[i]])==TRUE){
-    print(i)
-  }
-}
-
-# CDP-glycerol glycerophosphotransferase - dna for serotype b capsulation locus (bcs2) (HIB_11830) (HIB_RS06175)
-for(i in 1:length(moduleblocks)){
-  if ("HIB_11830" %in% rownames(moduleblocks[[i]])==TRUE){
-    print(i)
-  }
-}
-
-# CDP-glycerol glycerophosphotransferase - dna for serotype b capsulation locus (bcs2) (HIB_11680) (HIB_RS06110)
-for(i in 1:length(moduleblocks)){
-  if ("HIB_11680" %in% rownames(moduleblocks[[i]])==TRUE){
-    print(i)
-  }
-}
-
-# CDP-glycerol glycerophosphotransferase (bcs3) (HIB_11670) (HIB_RS06105)
-for(i in 1:length(moduleblocks)){
-  if ("HIB_11670" %in% rownames(moduleblocks[[i]])==TRUE){
-    print(i)
-  }
-}
-
-# CDP-glycerol glycerophosphotransferase (bcs3) (HIB_11820) (HIB_RS06170)
-for(i in 1:length(moduleblocks)){
-  if ("HIB_11820" %in% rownames(moduleblocks[[i]])==TRUE){
-    print(i)
-  }
-}
-
-# capsular polysaccharide biosynthesis protein (bcs4) (HIB_11660) (HIB_RS06100)
-for(i in 1:length(moduleblocks)){
-  if ("HIB_11660" %in% rownames(moduleblocks[[i]])==TRUE){
-    print(i)
-  }
-}
-
-# capsular polysaccharide biosynthesis protein (bcs4) (HIB_11810) (HIB_RS06165)
-for(i in 1:length(moduleblocks)){
-  if ("HIB_11810" %in% rownames(moduleblocks[[i]])==TRUE){
-    print(i)
-  }
-}
-```
-
-# Check if genes polysaccharide related are in the same module
-```{r, meddage=FALSE}
-# ATP-binding protein (bexA)
-for(i in 1:length(moduleblocks)){
-  if ("HIB_11730" %in% rownames(moduleblocks[[i]])==TRUE){
-    print(i)
-  }
-}
-
-# capsule polysaccharide export inner-membrane protein (bexB)
-for(i in 1:length(moduleblocks)){
-  if ("HIB_11720" %in% rownames(moduleblocks[[i]])==TRUE){
-    print(i)
-  }
-}
-
-# capsule polysaccharide export inner-membrane protein (bexB)
-for(i in 1:length(moduleblocks)){
-  if ("HIB_11870" %in% rownames(moduleblocks[[i]])==TRUE){
-    print(i)
-  }
-}
-
-# capsule polysaccharide transporter - capsular polysaccharide transport system permease protein (bexC)
-for(i in 1:length(moduleblocks)){
-  if ("HIB_11710" %in% rownames(moduleblocks[[i]])==TRUE){
-    print(i)
-  }
-}
-
-# capsule polysaccharide transporter - capsular polysaccharide transport system permease protein (bexC)
-for(i in 1:length(moduleblocks)){
-  if ("HIB_11860" %in% rownames(moduleblocks[[i]])==TRUE){
-    print(i)
-  }
-}
-
-# sugar ABC transporter substrate-binding protein - polysaccharide biosynthesis/export protein (bexD)
-for(i in 1:length(moduleblocks)){
-  if ("HIB_11850" %in% rownames(moduleblocks[[i]])==TRUE){
-    print(i)
-  }
-}
-
-# capsular polysaccharide export protein - capsule polysaccharide transporter (hcsA)
-for(i in 1:length(moduleblocks)){
-  if ("HIB_11650" %in% rownames(moduleblocks[[i]])==TRUE){
-    print(i)
-  }
-}
-
-# capsular polysaccharide export protein - capsule polysaccharide transporter (hcsA)
-for(i in 1:length(moduleblocks)){
-  if ("HIB_11800" %in% rownames(moduleblocks[[i]])==TRUE){
-    print(i)
-  }
-}
-
-# capsular polysaccharide export protein - capsule polysaccharide transporter (hcsB)
-for(i in 1:length(moduleblocks)){
-  if ("HIB_11640" %in% rownames(moduleblocks[[i]])==TRUE){
-    print(i)
-  }
-}
-
-# capsular polysaccharide export protein - capsule polysaccharide transporter (hcsB)
-for(i in 1:length(moduleblocks)){
-  if ("HIB_11790" %in% rownames(moduleblocks[[i]])==TRUE){
-    print(i)
-  }
-}
-```
-
-# Check if genes for TCA cycle are in the same module
-```{r, meddage=FALSE}
-# malate dehydrogenase (HIB_13680) (HIB_RS07095)
-for(i in 1:length(moduleblocks)){
-  if ("HIB_13680" %in% rownames(moduleblocks[[i]])==TRUE){
-    print(i)
-  }
-}
-
-#fumarate hydratase, class II (HIB_15690) (HIB_RS08095)
-for(i in 1:length(moduleblocks)){
-  if ("HIB_15690" %in% rownames(moduleblocks[[i]])==TRUE){
-    print(i)
-  }
-}
-
-# fumarate reductase subunit D (HIB_09650) (HIB_RS05120)
-for(i in 1:length(moduleblocks)){
-  if ("HIB_09650" %in% rownames(moduleblocks[[i]])==TRUE){
-    print(i)
-  }
-}
-
-# succinyl-CoA synthetase beta subunit) (HIB_13540) (HIB_RS07025)
-for(i in 1:length(moduleblocks)){
-  if ("HIB_06830" %in% rownames(moduleblocks[[i]])==TRUE){
-    print(i)
-  }
-}
-```
-
-
-# Check in which modules are genes for Transcription Factors
-```{r, message=FALSE}
-
-regulators = grep("regulator", RefSeqgff.genes$product)
-
-OldLocusTag_regulators = RefSeqgff.genes$OldLocusTag[grep("regulator", RefSeqgff.genes$product)]
-
-NewLocusTag_regulators = RefSeqgff.genes$Name[grep("regulator", RefSeqgff.genes$product)]
-
-# for(i in 1:length(moduleblocks)){for(j in 1:length(OldLocusTag_regulators)){
-#   if (OldLocusTag_regulators[j] %in% rownames(moduleblocks[[i]])==TRUE){
-#     print(j) && print(i)
-#   }
-# }
-# }
-
-OldLocusTag_regulators[9:11] #which.module[[1]] = "brown"
-OldLocusTag_regulators[15:16] #which.module[[1]] = "brown"
-OldLocusTag_regulators[25:28] #which.module[[1]] = "brown"
-OldLocusTag_regulators[32:35] #which.module[[1]] = "brown"
-OldLocusTag_regulators[38] #which.module[[1]] = "brown"
-OldLocusTag_regulators[43] #which.module[[1]] = "brown"
-OldLocusTag_regulators[46] #which.module[[1]] = "brown"
-OldLocusTag_regulators[52:53] #which.module[[1]] = "brown"
-OldLocusTag_regulators[56:58] #which.module[[1]] = "brown"
-
-OldLocusTag_regulators[3] #which.module[[2]] = "black"
-OldLocusTag_regulators[13] #which.module[[2]] = "black"
-OldLocusTag_regulators[42] #which.module[[2]] = "black"
-OldLocusTag_regulators[50:51] #which.module[[2]] = "black"
-
-OldLocusTag_regulators[2] #which.module[[4]] = "blue"
-OldLocusTag_regulators[4:6] #which.module[[4]] = "blue"
-OldLocusTag_regulators[8] #which.module[[4]] = "blue"
-OldLocusTag_regulators[17] #which.module[[4]] ="blue"
-OldLocusTag_regulators[23] #which.module[[4]] = "blue"
-OldLocusTag_regulators[26] #which.module[[4]] = "blue"
-OldLocusTag_regulators[29:31] #which.module[[4]] = "blue"
-OldLocusTag_regulators[36:37] #which.module[[4]] = "blue"
-OldLocusTag_regulators[39:40] #which.module[[4]] = "blue"
-OldLocusTag_regulators[47:49] #which.module[[4]] = "blue"
-
-OldLocusTag_regulators[12] #which.module[[5]] = "red"
-OldLocusTag_regulators[24] #which.module[[5]] = "red"
-OldLocusTag_regulators[41] #which.module[[5]] = "red"
-OldLocusTag_regulators[55] #which.module[[5]] = "red"
-
-OldLocusTag_regulators[18:19] #which.module[[6]] = "magenta"
-OldLocusTag_regulators[22] #which.module[[6]] = "magenta"
-OldLocusTag_regulators[45] #which.module[[6]] = "magenta"
-
-OldLocusTag_regulators[44] #which.module[[8]] = "green"
-OldLocusTag_regulators[54] #which.module[[8]] = "green"
-
-OldLocusTag_regulators[14] #which.module[[8]] = "pink"
-```
-
-# Check if genes for Transcription Factors are in the same module
-```{r, meddage=FALSE}
-# putative transcriptional regulator (HIB_00450) (HIB_RS00235)
-for(i in 1:length(moduleblocks)){
-  if ("HIB_10170" %in% rownames(moduleblocks[[i]])==TRUE){
-    print(i)
-  }
-}
-
-# DNA-binding transcriptional regulator of rRNA transcription, DnaK suppressor protein (HIB_00550) (HIB_RS00285)
-for(i in 1:length(moduleblocks)){
-  if ("HIB_00550" %in% rownames(moduleblocks[[i]])==TRUE){
-    print(i)
-  }
-}
-
-# DNA-binding transcriptional activator (HIB_01510) (HIB_RS00790)
-for(i in 1:length(moduleblocks)){
-  if ("HIB_01510" %in% rownames(moduleblocks[[i]])==TRUE){
-    print(i)
-  }
-}
-
-# putative HTH-type transcriptional regulator (HIB_01960) (HIB_RS01075)
-for(i in 1:length(moduleblocks)){
-  if ("HIB_01960" %in% rownames(moduleblocks[[i]])==TRUE){
-    print(i)
-  }
-}
-
-# regulator of penicillin binding proteins and beta lactamase transcription (morphogene) (HIB_02160) (HIB_RS01175)
-for(i in 1:length(moduleblocks)){
-  if ("HIB_02160" %in% rownames(moduleblocks[[i]])==TRUE){
-    print(i)
-  }
-}
-
-# putative HTH-type transcriptional regulator (HIB_02370) (HIB_RS01280)
-for(i in 1:length(moduleblocks)){
-  if ("HIB_02370" %in% rownames(moduleblocks[[i]])==TRUE){
-    print(i)
-  }
-}
-
-# DNA-binding transcriptional dual regulator (HIB_02420) (HIB_RS01305)
-for(i in 1:length(moduleblocks)){
-  if ("HIB_02420" %in% rownames(moduleblocks[[i]])==TRUE){
-    print(i)
-  }
-}
-
-# 	bifunctional biotin-[acetylCoA carboxylase] holoenzyme synthetase/ DNA-binding transcriptional repressor, bio-5'-AMP-binding (HIB_02770) (HIB_RS01490)
-for(i in 1:length(moduleblocks)){
-  if ("HIB_02770" %in% rownames(moduleblocks[[i]])==TRUE){
-    print(i)
-  }
-}
-
-# putative transcriptional regulator (HIB_02810) (HIB_RS01510)
-for(i in 1:length(moduleblocks)){
-  if ("HIB_02810" %in% rownames(moduleblocks[[i]])==TRUE){
-    print(i)
-  }
-}
-
-# putative HTH-type transcriptional regulator (HIB_03450) (HIB_RS01280)
-for(i in 1:length(moduleblocks)){
-  if ("HIB_06830" %in% rownames(moduleblocks[[i]])==TRUE){
-    print(i)
-  }
-}
-```
 
 # Plot the dendrogram and colors underneath
 ```{r, fig.width=7, fig.height=7}
@@ -787,7 +532,7 @@ plotEigengeneNetworks(datME, "", marDendro = c(0,4,1,2), marHeatmap = c(3,4,1,2)
 # Setting the diagonal to NA also improves the clarity of the plot
 
 # Transform dissTOM with a power to make moderately strong connections more visible in the heatmap
-plotTOM = dissTOM^7
+plotTOM = dissTOM^10
 
 diag(plotTOM) = NA
 
@@ -818,10 +563,14 @@ for (i in 1:length(which.module)){ME[[i]] = datME[, paste("ME",which.module[[i]]
 # Diagnostics: barplots of eigengene module expression
 ```{r, fig.width=7, fig.height=7}
 meanME = list()
-for (i in 1:length(which.module)){meanME[[i]] = as.vector(rbind(mean(ME[[i]][1:4]), mean(ME[[i]][5:8]), mean(ME[[i]][9:12]), mean(ME[[i]][13:16]), mean(ME[[i]][17:20]),  mean(ME[[i]][21:24])))}
+for (i in 1:length(which.module)){meanME[[i]] = as.vector(rbind(mean(ME[[i]][HibDesign2$condition=="S01"]), mean(ME[[i]][HibDesign2$condition=="S02"]), mean(ME[[i]][HibDesign2$condition=="S03"]), mean(ME[[i]][HibDesign2$condition=="S04"]), mean(ME[[i]][HibDesign2$condition=="S05"]),  mean(ME[[i]][HibDesign2$condition=="S06"])))}
 
 sdME = list()
-for (i in 1:length(which.module)){sdME[[i]] = as.vector(rbind(sd(ME[[i]][1:4]), sd(ME[[i]][5:8]), sd(ME[[i]][9:12]), sd(ME[[i]][13:16]), sd(ME[[i]][17:20]),  sd(ME[[i]][21:24])))}
+for (i in 1:length(which.module)){sdME[[i]] = as.vector(rbind(sd(ME[[i]][HibDesign2$condition=="S01"]), sd(ME[[i]][HibDesign2$condition=="S02"]), sd(ME[[i]][HibDesign2$condition=="S03"]), sd(ME[[i]][HibDesign2$condition=="S04"]), sd(ME[[i]][HibDesign2$condition=="S05"]),  sd(ME[[i]][HibDesign2$condition=="S06"])))}
+
+library(plotrix)
+std.errorME = list()
+for (i in 1:length(which.module)){std.errorME[[i]] = as.vector(rbind(std.error(ME[[i]][HibDesign2$condition=="S01"]), std.error(ME[[i]][HibDesign2$condition=="S02"]), std.error(ME[[i]][HibDesign2$condition=="S03"]), std.error(ME[[i]][HibDesign2$condition=="S04"]), std.error(ME[[i]][HibDesign2$condition=="S05"]),  std.error(ME[[i]][HibDesign2$condition=="S06"])))}
 
 # main=paste0("Expressão do autogene \n do módulo ", which.module[[i]])
 # par(mar=c(6,6,3,3),cex.axis=1.5,cex.lab=1.2)
@@ -829,10 +578,10 @@ par(mfrow=c(3,3), mar=c(5.1,4.1,4.1,2.1), cex.axis=1.5,cex.lab=1.2)
 
 for (i in 1:length(which.module)){
 
-MEbarplot = barplot(meanME[[i]], col=which.module[[i]], main="", cex.main=1.2, cex.lab = 1.5, ylab="Expressão do autogene",xlab="Amostras", ylim=c(-0.7,0.7))
+MEbarplot = barplot(meanME[[i]], col=which.module[[i]], main="", cex.main=1.2, cex.lab = 1.5, ylab="Eigengene expression",xlab="Samples", ylim=c(-0.7,0.7))
 abline(h=0, col="black")
-arrows(MEbarplot,meanME[[i]] - sdME[[i]], MEbarplot,
-       meanME[[i]] + sdME[[i]], lwd = 1.5, angle = 90,
+arrows(MEbarplot,meanME[[i]] - std.errorME[[i]], MEbarplot,
+       meanME[[i]] + std.errorME[[i]], lwd = 1.5, angle = 90,
        code = 3, length = 0.05)
 }
 ```
@@ -851,24 +600,9 @@ ME=list()
 for (i in 1:length(which.module)){ME[[i]] = datME[, paste("ME",which.module[[i]], sep="")]}
 
 par(mfrow=c(3,3), mar=c(1, 2, 4, 1))
-
-plotMat(t(scale(datExpr[,moduleColors==which.module[[1]] ]) ),nrgcols=30,rlabels=T, clabels=T,rcols=which.module[[1]], title=which.module[[1]] )
-
-plotMat(t(scale(datExpr[,moduleColors==which.module[[2]] ]) ),nrgcols=30,rlabels=T, clabels=T,rcols=which.module, title=which.module[[2]] )
-
-plotMat(t(scale(datExpr[,moduleColors==which.module[[3]] ]) ),nrgcols=30,rlabels=T, clabels=T,rcols=which.module, title=which.module[[3]] )
-
-plotMat(t(scale(datExpr[,moduleColors==which.module[[4]] ]) ),nrgcols=30,rlabels=T, clabels=T,rcols=which.module, title=which.module[[4]] )
-
-plotMat(t(scale(datExpr[,moduleColors==which.module[[5]] ]) ),nrgcols=30,rlabels=T, clabels=T,rcols=which.module, title=which.module[[5]] )
-
-plotMat(t(scale(datExpr[,moduleColors==which.module[[6]] ]) ),nrgcols=30,rlabels=T, clabels=T,rcols=which.module, title=which.module[[6]] )
-
-plotMat(t(scale(datExpr[,moduleColors==which.module[[7]] ]) ),nrgcols=30,rlabels=T, clabels=T,rcols=which.module, title=which.module[[7]] )
-
-plotMat(t(scale(datExpr[,moduleColors==which.module[[8]] ]) ),nrgcols=30,rlabels=T, clabels=T,rcols=which.module, title=which.module[[8]] )
-
-plotMat(t(scale(datExpr[,moduleColors==which.module[[9]] ]) ),nrgcols=30,rlabels=T, clabels=T,rcols=which.module, title=which.module[[9]] )
+for (i in 1:length(which.module)){
+plotMat(t(scale(datExpr[,moduleColors==which.module[[i]] ]) ),nrgcols=30,rlabels=T, clabels=T,rcols=which.module[[i]], title=which.module[[i]] )
+}
 ```
 
 # Diagnostics: displaying module eigengenes line plots
@@ -879,187 +613,27 @@ scaled = t(scale(datExpr))
 # Diagnostics: displaying module heatmap and the eigengene
 ```{r, fig.width=7, fig.height=14}
 par(mfrow=c(3,1), mar=c(0.3, 5.5, 3, 2))
-plotMat(t(scale(datExpr[,moduleColors==which.module[[1]] ]) ), nrgcols=30,rlabels=F,rcols=which.module[[1]], main=which.module[[1]], cex.main=2)
+
+for (i in 1:length(which.module)){
+plotMat(t(scale(datExpr[,moduleColors==which.module[[i]] ]) ), nrgcols=30,rlabels=F,rcols=which.module[[i]], main=which.module[[i]], cex.main=2)
 
 par(mar=c(5, 4.2, 0, 0.7))
-barplot(ME[[1]], col=which.module[[1]], main="", cex.main=2, cex.lab = 1.5, ylab="Express?o do autogene",xlab="Amostras")
+barplot(ME[[i]], col=which.module[[i]], main="", cex.main=2, cex.lab = 1.5, ylim=c(-0.7,0.7), ylab="Eigengene Expression",xlab="Samples")
 #axis = axis(side=2, at = c(-0.1, 0.1, 0.2, 0.3, 0.4), labels = format(c(-0.1, 0.1, 0.2, 0.3, 0.4), decimal.mark=","))
 
 min_y = min(scaled)
 max_y = max(scaled)
 
-brown = scaled[moduleColors==which.module[[1]],]
+# brown = scaled[moduleColors==which.module[[1]],][1,]
 
 # spaghetti plot
-plot(1:24, brown[1,], col=which.module[[1]], type="l", main="", cex.main=2, ylab="Express?o do autogene", cex.lab = 1.5, xlim=c(1,24), xlab="", ylim=c(min_y, max_y), xaxt='n')
-axis = axis(side=1, at = 1:24, labels = rownames(datExpr),las = 2)
-title(xlab="Amostras", line=4, cex.lab=1.5)
-for (i in 2:nrow(scaled[moduleColors==which.module[[1]],])){lines(1:24, brown[i,], col=which.module[[1]])}
-lines(1:24, ME[[1]],  col="black", type="l", lwd = 4)
+plot(1:ncol(countData), scaled[moduleColors==which.module[[i]],][1,], col=which.module[[i]], type="l", main="", cex.main=2, ylab="Eigengene Expression", cex.lab = 1.5, xlim=c(1,ncol(countData)), xlab="", ylim=c(min_y, max_y), xaxt='n')
+axis = axis(side=1, at = 1:ncol(countData), labels = rownames(datExpr),las = 2)
+title(xlab="Samples", line=4, cex.lab=1.5)
+for (j in 2:nrow(scaled[moduleColors==which.module[[i]],])){lines(1:ncol(countData), scaled[moduleColors==which.module[[i]],][j,], col=which.module[[i]])}
+lines(1:ncol(countData), ME[[i]],  col="black", type="l", lwd = 4)
+}
 ```
-
-
-# Diagnostics: displaying module heatmap and the eigengene
-```{r, fig.width=7, fig.height=14}
-par(mfrow=c(3,1), mar=c(0.3, 5.5, 3, 2))
-plotMat(t(scale(datExpr[,moduleColors==which.module[[2]] ]) ), nrgcols=30,rlabels=F,rcols=which.module[[2]], main=which.module[[2]], cex.main=2)
-par(mar=c(5, 4.2, 0, 0.7))
-barplot(ME[[2]], col=which.module[[2]], main="", cex.main=2, ylab="Express???£o do autogene",xlab="Amostra")
-
-min_y = min(scaled)
-max_y = max(scaled)
-
-black = scaled[moduleColors==which.module[[2]],]
-
-# spaghetti plot
-plot(1:24, black[1,], col=which.module[[2]], type="l", main="", cex.main=2, ylab="Express?o do autogene", cex.lab = 1.5, xlim=c(1,24), xlab="", ylim=c(min_y, max_y), xaxt='n')
-axis = axis(side=1, at = 1:24, labels = rownames(datExpr),las = 2)
-title(xlab="Amostras", line=4, cex.lab=1.5)
-for (i in 2:nrow(scaled[moduleColors==which.module[[2]],])){lines(1:24, black[i,], col=which.module[[1]])}
-lines(1:24, ME[[2]],  col="black", type="l", lwd = 4)
-```
-
-# Diagnostics: displaying module heatmap and the eigengene
-```{r, fig.width=7, fig.height=14}
-par(mfrow=c(3,1), mar=c(0.3, 5.5, 3, 2))
-plotMat(t(scale(datExpr[,moduleColors==which.module[[3]] ]) ), nrgcols=30,rlabels=F,rcols=which.module[[3]], main=which.module[[3]], cex.main=2)
-par(mar=c(5, 4.2, 0, 0.7))
-barplot(ME[[3]], col=which.module[[3]], main="", cex.main=2, ylab="Express???£o do autogene",xlab="Amostra")
-
-min_y = min(scaled)
-max_y = max(scaled)
-
-purple = scaled[moduleColors==which.module[[3]],]
-
-# spaghetti plot
-plot(1:24, purple[1,], col=which.module[[3]], type="l", main="", cex.main=2, ylab="Express?o do autogene", cex.lab = 1.5, xlim=c(1,24), xlab="", ylim=c(min_y, max_y), xaxt='n')
-axis = axis(side=1, at = 1:24, labels = rownames(datExpr),las = 2)
-title(xlab="Amostras", line=4, cex.lab=1.5)
-for (i in 2:nrow(scaled[moduleColors==which.module[[3]],])){lines(1:24, purple[i,], col=which.module[[3]])}
-lines(1:24, ME[[3]],  col="black", type="l", lwd = 4)
-```
-
-# Diagnostics: displaying module heatmap and the eigengene
-```{r, fig.width=7, fig.height=14}
-par(mfrow=c(3,1), mar=c(0.3, 5.5, 3, 2))
-plotMat(t(scale(datExpr[,moduleColors==which.module[[4]] ]) ), nrgcols=30,rlabels=F,rcols=which.module[[4]], main=which.module[[4]], cex.main=2)
-par(mar=c(5, 4.2, 0, 0.7))
-barplot(ME[[4]], col=which.module[[4]], main="", cex.main=2, ylab="Express???£o do autogene",xlab="Amostra")
-
-min_y = min(scaled)
-max_y = max(scaled)
-
-blue = scaled[moduleColors==which.module[[4]],]
-
-# spaghetti plot
-plot(1:24, blue[1,], col=which.module[[4]], type="l", main="", cex.main=2, ylab="Express?o do autogene", cex.lab = 1.5, xlim=c(1,24), xlab="",ylim=c(min_y, max_y), xaxt='n')
-axis = axis(side=1, at = 1:24, labels = rownames(datExpr),las = 2)
-title(xlab="Amostras", line=4, cex.lab=1.5)
-for (i in 2:nrow(scaled[moduleColors==which.module[[4]],])){lines(1:24, blue[i,], col=which.module[[4]])}
-lines(1:24, ME[[4]],  col="black", type="l", lwd = 4)
-```
-
-# Diagnostics: displaying module heatmap and the eigengene
-```{r, fig.width=7, fig.height=14}
-par(mfrow=c(3,1), mar=c(0.3, 5.5, 3, 2))
-plotMat(t(scale(datExpr[,moduleColors==which.module[[5]] ]) ), nrgcols=30,rlabels=F,rcols=which.module[[5]], main=which.module[[5]], cex.main=2)
-par(mar=c(5, 4.2, 0, 0.7))
-barplot(ME[[5]], col=which.module[[5]], main="", cex.main=2, ylab="Express???£o do autogene",xlab="Amostra")
-
-min_y = min(scaled)
-max_y = max(scaled)
-
-red = scaled[moduleColors==which.module[[5]],]
-
-# spaghetti plot
-plot(1:24, red[1,], col=which.module[[5]], type="l", main="", cex.main=2, ylab="Express?o do autogene", cex.lab = 1.5, xlim=c(1,24), xlab="",ylim=c(min_y, max_y), xaxt='n')
-axis = axis(side=1, at = 1:24, labels = rownames(datExpr),las = 2)
-title(xlab="Amostras", line=4, cex.lab=1.5)
-for (i in 2:nrow(scaled[moduleColors==which.module[[5]],])){lines(1:24, red[i,], col=which.module[[5]])}
-lines(1:24, ME[[5]],  col="black", type="l", lwd = 4)
-```
-
-# Diagnostics: displaying module heatmap and the eigengene
-```{r, fig.width=7, fig.height=14}
-par(mfrow=c(3,1), mar=c(0.3, 5.5, 3, 2))
-plotMat(t(scale(datExpr[,moduleColors==which.module[[6]] ]) ), nrgcols=30,rlabels=F,rcols=which.module[[6]], main=which.module[[6]], cex.main=2)
-par(mar=c(5, 4.2, 0, 0.7))
-barplot(ME[[6]], col=which.module[[6]], main="", cex.main=2, ylab="Express???£o do autogene",xlab="Amostra")
-
-min_y = min(scaled)
-max_y = max(scaled)
-
-magenta = scaled[moduleColors==which.module[[6]],]
-
-# spaghetti plot
-plot(1:24, magenta[1,], col=which.module[[6]], type="l", main="", cex.main=2, ylab="Express?o do autogene", cex.lab = 1.5, xlim=c(1,24), xlab="",ylim=c(min_y, max_y), xaxt='n')
-axis = axis(side=1, at = 1:24, labels = rownames(datExpr),las = 2)
-title(xlab="Amostras", line=4, cex.lab=1.5)
-for (i in 2:nrow(scaled[moduleColors==which.module[[6]],])){lines(1:24, magenta[i,], col=which.module[[6]])}
-lines(1:24, ME[[6]],  col="black", type="l", lwd = 4)
-```
-
-# Diagnostics: displaying module heatmap and the eigengene
-```{r, fig.width=7, fig.height=14}
-par(mfrow=c(3,1), mar=c(0.3, 5.5, 3, 2))
-plotMat(t(scale(datExpr[,moduleColors==which.module[[7]] ]) ), nrgcols=30,rlabels=F,rcols=which.module[[7]], main=which.module[[7]], cex.main=2)
-par(mar=c(5, 4.2, 0, 0.7))
-barplot(ME[[7]], col=which.module[[7]], main="", cex.main=2, ylab="Express???£o do autogene",xlab="Amostra")
-
-min_y = min(scaled)
-max_y = max(scaled)
-
-green = scaled[moduleColors==which.module[[7]],]
-
-# spaghetti plot
-plot(1:24, green[1,], col=which.module[[7]], type="l", main="", cex.main=2, ylab="Express?o do autogene", cex.lab = 1.5, xlim=c(1,24), xlab="",ylim=c(min_y, max_y), xaxt='n')
-axis = axis(side=1, at = 1:24, labels = rownames(datExpr),las = 2)
-title(xlab="Amostras", line=4, cex.lab=1.5)
-for (i in 2:nrow(scaled[moduleColors==which.module[[7]],])){lines(1:24, green[i,], col=which.module[[7]])}
-lines(1:24, ME[[7]],  col="black", type="l", lwd = 4)
-```
-
-# Diagnostics: displaying module heatmap and the eigengene
-```{r, fig.width=7, fig.height=14}
-par(mfrow=c(3,1), mar=c(0.3, 5.5, 3, 2))
-plotMat(t(scale(datExpr[,moduleColors==which.module[[8]] ]) ), nrgcols=30,rlabels=F,rcols=which.module[[8]], main=which.module[[8]], cex.main=2)
-par(mar=c(5, 4.2, 0, 0.7))
-barplot(ME[[8]], col=which.module[[8]], main="", cex.main=2, ylab="Express???£o do autogene",xlab="Amostra")
-
-min_y = min(scaled)
-max_y = max(scaled)
-
-pink = scaled[moduleColors==which.module[[8]],]
-
-# spaghetti plot
-plot(1:24, pink[1,], col=which.module[[8]], type="l", main="", cex.main=2, ylab="Express?o do autogene", cex.lab = 1.5, xlim=c(1,24), xlab="",ylim=c(min_y, max_y), xaxt='n')
-axis = axis(side=1, at = 1:24, labels = rownames(datExpr),las = 2)
-title(xlab="Amostras", line=4, cex.lab=1.5)
-for (i in 2:nrow(scaled[moduleColors==which.module[[8]],])){lines(1:24, pink[i,], col=which.module[[8]])}
-lines(1:24, ME[[8]],  col="black", type="l", lwd = 4)
-
-```
-
-# Diagnostics: displaying module heatmap and the eigengene
-```{r, fig.width=7, fig.height=14}
-par(mfrow=c(3,1), mar=c(0.3, 5.5, 3, 2))
-plotMat(t(scale(datExpr[,moduleColors==which.module[[9]] ]) ), nrgcols=30,rlabels=F,rcols=which.module[[9]], main=which.module[[9]], cex.main=2)
-par(mar=c(5, 4.2, 0, 0.7))
-barplot(ME[[9]], col=which.module[[9]], main="", cex.main=2, ylab="Expressão do autogene",xlab="Amostra")
-
-min_y = min(scaled)
-max_y = max(scaled)
-
-grey = scaled[moduleColors==which.module[[7]],]
-
-# spaghetti plot
-plot(1:24, grey[1,], col=which.module[[9]], type="l", main="", cex.main=2, ylab="Expressão do autogene", cex.lab = 1.5, xlim=c(1,24), xlab="",ylim=c(min_y, max_y), xaxt='n')
-axis = axis(side=1, at = 1:24, labels = rownames(datExpr),las = 2)
-title(xlab="Amostras", line=4, cex.lab=1.5)
-for (i in 2:nrow(scaled[moduleColors==which.module[[9]],])){lines(1:24, grey[i,], col=which.module[[9]])}
-lines(1:24, ME[[9]],  col="black", type="l", lwd = 4)
-```
-
 
 
 
@@ -1191,7 +765,7 @@ CO2s = lapply(1:4, function(i){CO2v[[i]][points]})
 CO2t = as.vector(sapply(1:4, function(i){cbind(CO2s[[i]])}))
 
 max_y = max(unlist(lapply(CO2v,FUN=max,na.rm=TRUE))) # Compute the largest y value used in the data
-plot(EFTv[[1]], CO2v[[1]], type="o", pch=21, lty = 1, xlab="Tempo (h)", ylab=expression("[" ~ CO[2] ~ "] (%)"), main = expression("Concentra??o de" ~ CO[2] ~ " durante o cultivo"), col = cores[1],  xlim=c(0, xmax), ylim=c(0, max_y))
+plot(EFTv[[1]], CO2v[[1]], type="o", pch=21, lty = 1, xlab="Time (h)", ylab=expression("[" ~ CO[2] ~ "] (%)"), main = expression( ~ CO[2] ~ "concentration during cultivation"), col = cores[1],  xlim=c(0, xmax), ylim=c(0, max_y))
 #box() # Create box around plot
 #lapply(2:4, function(i){lines(PRPv[[i]], type="o", pch=20+i, lty = i, col=rainbow(i))})
 for (i in 2:4){
@@ -1200,7 +774,6 @@ for (i in 2:4){
 # Create a legend at (1, max_y) that is slightly smaller (cex) and uses the same line colors and points used by the actual plots
 legend("bottomright", max_y, legend = c("HibPP0616", "HibPP0716", "HibPP0816", "HibPP0217"), cex=0.7, col=c(cores[1], cores[2], cores[3], cores[4]), pch=21:24, lty=1:4)
 ```
-
 
 ```{r}
 library("plotrix")
@@ -1232,6 +805,7 @@ arrows(MeanEFT,CI.dn,MeanEFT,CI.up,code=3,length=0.1,angle=90,col='black')
 DeltaCO2 = vector(mode = "list", length = 4)
 for(i in 1:4){for(j in 2:22){DeltaCO2[[i]][j] = CO2v[[i]][j]-CO2v[[i]][j-1]}}
 ```
+
 
 # [O2]
 ```{r}
@@ -1302,7 +876,6 @@ max_y = max(unlist(lapply(AcetatovMean+Acetatovstd.error,FUN=max,na.rm=TRUE))) #
 plot(MeanEFT, AcetatovMean, type="o", pch=21, lty = 1, xlab="Tempo (h)", ylab= expression("[Acetato] " ~ (g.L^{-1})), main = "Concentração de Acetato produzido", col = cores[1],  xlim=c(0, xmax), ylim=c(0, max_y))
 arrows(MeanEFT,CI.dn,MeanEFT,CI.up,code=3,length=0.1,angle=90,col='black')
 ```
-
 
 # DeltaAcetato
 ```{r}
@@ -1541,6 +1114,46 @@ for (i in 2:4){
 }
 # Create a legend at (1, max_y) that is slightly smaller (cex) and uses the same line colors and points used by the actual plots
 legend("topleft", max_y, legend = c("HibPP0616", "HibPP0716", "HibPP0816", "HibPP0217"), cex=0.7, col=c(cores[1], cores[2], cores[3], cores[4]), pch=21:24, lty=1:4)
+```
+
+# All HibPP_Variables
+```{r, message=FALSE}
+DeltaCO2 = vector(mode = "list", length = 4)
+for(i in 1:4){for(j in 2:22){DeltaCO2[[i]][j] = CO2v[[i]][j]-CO2v[[i]][j-1]}}
+
+DeltaO2 = vector(mode = "list", length = 4)
+for(i in 1:4){for(j in 2:22){DeltaO2[[i]][j] = O2v[[i]][j]-O2v[[i]][j-1]}}
+
+DeltaAcetato = vector(mode = "list", length = 4)
+for(i in 1:4){for(j in 2:22){DeltaAcetato[[i]][j] = Acetatov[[i]][j]-Acetatov[[i]][j-1]}}
+
+DeltaPRP = vector(mode = "list", length = 4)
+for(i in 1:4){for(j in 2:22){DeltaPRP[[i]][j] = PRPv[[i]][j]-PRPv[[i]][j-1]}}
+
+DeltaMassa = vector(mode = "list", length = 4)
+for(i in 1:4){for(j in 2:22){DeltaMassa[[i]][j] = Massav[[i]][j]-Massav[[i]][j-1]}}
+
+DeltaGlicose = vector(mode = "list", length = 4)
+for(i in 1:4){for(j in 2:22){DeltaGlicose[[i]][j] = Glicosev[[i]][j]-Glicosev[[i]][j-1]}}
+
+DeltaCGlicose = vector(mode = "list", length = 4)
+for(i in 1:4){for(j in 2:22){DeltaCGlicose[[i]][j] = CGlicosev[[i]][j]-CGlicosev[[i]][j-1]}}
+
+# velocidades instantaneas de crescimento/ Crescimento espec???????fico
+rx = cbind(DeltaMassa[[1]]/DeltaEFT[[1]], DeltaMassa[[2]]/DeltaEFT[[2]], DeltaMassa[[3]]/DeltaEFT[[3]], DeltaMassa[[4]]/DeltaEFT[[4]])
+rxv = lapply(1:4, function(i){rx[,i]})
+
+HibPP_Variables = lapply(1:4, function(i){as.data.frame(cbind(HibPP[[i]][,9], HibPP[[i]][,7], HibPP[[i]][,13], HibPP[[i]][,15], HibPP[[i]][,11], HibPP[[i]][,12], HibPP[[i]][,21], HibPP[[i]][,16]))})
+HibPP_Variables = lapply(HibPP_Variables, setNames, nm = c("CO2", "O2", "Acetate", "PRP", "Biomass", "Glucose", "Glucose_consumption", "Molecular_mass"))
+HibPP_Variables = lapply(HibPP_Variables, function(x) apply(x, 2, function(y) gsub("%", "", y))) # remove "%"
+options(digits=3)
+HibPP_Variables = lapply(HibPP_Variables, function(x) apply(x, 2, function(y) as.numeric(sub(",", ".", y, fixed = TRUE)))) # substitute "," for "."
+
+HibPP_Variables_Samples = lapply(1:4, function(i){HibPP_Variables[[i]][points,]})
+HibPP_Variables_Vector = lapply(1:ncol(HibPP_Variables_Samples[[1]]), function(j) as.vector(sapply(1:4, function(i){cbind(HibPP_Variables_Samples[[i]][,j])})))
+names(HibPP_Variables_Vector) = c("CO2", "O2", "Acetate", "PRP", "Biomass", "Glucose", "Glucose_consumption", "Molecular_mass")
+
+# lapply(HibPP_Variables, function(i) apply(2:22, 2, function(j) i[,7][j] = CO2[j] - CO2[j-1]))
 ```
 
 ```{r}
@@ -3075,5 +2688,267 @@ plot(1:24, log(WGCNAtpm[moduleColors==which.module[[j]],][1,]), type="l", main="
 axis = axis(side=1, at = 1:24, labels = rownames(datExpr),las = 2)
 title(xlab="Amostras", line=4, cex.lab=1.5)
 for (i in 2:nrow(WGCNAtpm[moduleColors==which.module[[j]],])){lines(1:24, log(WGCNAtpm[moduleColors==which.module[[j]],][i,]))}
+}
+```
+
+```{r, fig.width=7, fig.height=14}
+
+```
+
+
+
+
+
+
+# Check in which modules are genes for Transcription Factors
+```{r, message=FALSE}
+
+regulators = grep("regulator", RefSeqgff.genes$product)
+
+OldLocusTag_regulators = RefSeqgff.genes$OldLocusTag[grep("regulator", RefSeqgff.genes$product)]
+
+NewLocusTag_regulators = RefSeqgff.genes$Name[grep("regulator", RefSeqgff.genes$product)]
+```
+
+# Check if genes for polysaccharide synthesis are in the same module
+```{r, meddage=FALSE}
+# Polysaccharide polymerase (HIB_10030) (HIB_RS05310)
+for(i in 1:length(moduleblocks)){
+  if ("HIB_10030" %in% rownames(moduleblocks[[i]])==TRUE){
+    print(i)
+  }
+}
+
+# short-chain dehydrogenases/reductases family protein - ribitol-5-phosphate 2-dehydrogenase (NADP+) / D-ribitol-5-phosphate cytidylyltransferase (bcs1) (HIB_11690) (HIB_RS06115)
+for(i in 1:length(moduleblocks)){
+  if ("HIB_11690" %in% rownames(moduleblocks[[i]])==TRUE){
+    print(i)
+  }
+}
+
+# short-chain dehydrogenases/reductases family protein - ribitol-5-phosphate 2-dehydrogenase (NADP+) / D-ribitol-5-phosphate cytidylyltransferase (bcs1) (HIB_11840) (HIB_RS06180)
+for(i in 1:length(moduleblocks)){
+  if ("HIB_11840" %in% rownames(moduleblocks[[i]])==TRUE){
+    print(i)
+  }
+}
+
+# CDP-glycerol glycerophosphotransferase - dna for serotype b capsulation locus (bcs2) (HIB_11830) (HIB_RS06175)
+for(i in 1:length(moduleblocks)){
+  if ("HIB_11830" %in% rownames(moduleblocks[[i]])==TRUE){
+    print(i)
+  }
+}
+
+# CDP-glycerol glycerophosphotransferase - dna for serotype b capsulation locus (bcs2) (HIB_11680) (HIB_RS06110)
+for(i in 1:length(moduleblocks)){
+  if ("HIB_11680" %in% rownames(moduleblocks[[i]])==TRUE){
+    print(i)
+  }
+}
+
+# CDP-glycerol glycerophosphotransferase (bcs3) (HIB_11670) (HIB_RS06105)
+for(i in 1:length(moduleblocks)){
+  if ("HIB_11670" %in% rownames(moduleblocks[[i]])==TRUE){
+    print(i)
+  }
+}
+
+# CDP-glycerol glycerophosphotransferase (bcs3) (HIB_11820) (HIB_RS06170)
+for(i in 1:length(moduleblocks)){
+  if ("HIB_11820" %in% rownames(moduleblocks[[i]])==TRUE){
+    print(i)
+  }
+}
+
+# capsular polysaccharide biosynthesis protein (bcs4) (HIB_11660) (HIB_RS06100)
+for(i in 1:length(moduleblocks)){
+  if ("HIB_11660" %in% rownames(moduleblocks[[i]])==TRUE){
+    print(i)
+  }
+}
+
+# capsular polysaccharide biosynthesis protein (bcs4) (HIB_11810) (HIB_RS06165)
+for(i in 1:length(moduleblocks)){
+  if ("HIB_11810" %in% rownames(moduleblocks[[i]])==TRUE){
+    print(i)
+  }
+}
+```
+
+# Check if genes polysaccharide related are in the same module
+```{r, meddage=FALSE}
+# ATP-binding protein (bexA)
+for(i in 1:length(moduleblocks)){
+  if ("HIB_11730" %in% rownames(moduleblocks[[i]])==TRUE){
+    print(i)
+  }
+}
+
+# capsule polysaccharide export inner-membrane protein (bexB)
+for(i in 1:length(moduleblocks)){
+  if ("HIB_11720" %in% rownames(moduleblocks[[i]])==TRUE){
+    print(i)
+  }
+}
+
+# capsule polysaccharide export inner-membrane protein (bexB)
+for(i in 1:length(moduleblocks)){
+  if ("HIB_11870" %in% rownames(moduleblocks[[i]])==TRUE){
+    print(i)
+  }
+}
+
+# capsule polysaccharide transporter - capsular polysaccharide transport system permease protein (bexC)
+for(i in 1:length(moduleblocks)){
+  if ("HIB_11710" %in% rownames(moduleblocks[[i]])==TRUE){
+    print(i)
+  }
+}
+
+# capsule polysaccharide transporter - capsular polysaccharide transport system permease protein (bexC)
+for(i in 1:length(moduleblocks)){
+  if ("HIB_11860" %in% rownames(moduleblocks[[i]])==TRUE){
+    print(i)
+  }
+}
+
+# sugar ABC transporter substrate-binding protein - polysaccharide biosynthesis/export protein (bexD)
+for(i in 1:length(moduleblocks)){
+  if ("HIB_11850" %in% rownames(moduleblocks[[i]])==TRUE){
+    print(i)
+  }
+}
+
+# capsular polysaccharide export protein - capsule polysaccharide transporter (hcsA)
+for(i in 1:length(moduleblocks)){
+  if ("HIB_11650" %in% rownames(moduleblocks[[i]])==TRUE){
+    print(i)
+  }
+}
+
+# capsular polysaccharide export protein - capsule polysaccharide transporter (hcsA)
+for(i in 1:length(moduleblocks)){
+  if ("HIB_11800" %in% rownames(moduleblocks[[i]])==TRUE){
+    print(i)
+  }
+}
+
+# capsular polysaccharide export protein - capsule polysaccharide transporter (hcsB)
+for(i in 1:length(moduleblocks)){
+  if ("HIB_11640" %in% rownames(moduleblocks[[i]])==TRUE){
+    print(i)
+  }
+}
+
+# capsular polysaccharide export protein - capsule polysaccharide transporter (hcsB)
+for(i in 1:length(moduleblocks)){
+  if ("HIB_11790" %in% rownames(moduleblocks[[i]])==TRUE){
+    print(i)
+  }
+}
+```
+
+# Check if genes for TCA cycle are in the same module
+```{r, meddage=FALSE}
+# malate dehydrogenase (HIB_13680) (HIB_RS07095)
+for(i in 1:length(moduleblocks)){
+  if ("HIB_13680" %in% rownames(moduleblocks[[i]])==TRUE){
+    print(i)
+  }
+}
+
+#fumarate hydratase, class II (HIB_15690) (HIB_RS08095)
+for(i in 1:length(moduleblocks)){
+  if ("HIB_15690" %in% rownames(moduleblocks[[i]])==TRUE){
+    print(i)
+  }
+}
+
+# fumarate reductase subunit D (HIB_09650) (HIB_RS05120)
+for(i in 1:length(moduleblocks)){
+  if ("HIB_09650" %in% rownames(moduleblocks[[i]])==TRUE){
+    print(i)
+  }
+}
+
+# succinyl-CoA synthetase beta subunit) (HIB_13540) (HIB_RS07025)
+for(i in 1:length(moduleblocks)){
+  if ("HIB_06830" %in% rownames(moduleblocks[[i]])==TRUE){
+    print(i)
+  }
+}
+```
+
+# Check if genes for Transcription Factors are in the same module
+```{r, meddage=FALSE}
+# putative transcriptional regulator (HIB_00450) (HIB_RS00235)
+for(i in 1:length(moduleblocks)){
+  if ("HIB_10170" %in% rownames(moduleblocks[[i]])==TRUE){
+    print(i)
+  }
+}
+
+# DNA-binding transcriptional regulator of rRNA transcription, DnaK suppressor protein (HIB_00550) (HIB_RS00285)
+for(i in 1:length(moduleblocks)){
+  if ("HIB_00550" %in% rownames(moduleblocks[[i]])==TRUE){
+    print(i)
+  }
+}
+
+# DNA-binding transcriptional activator (HIB_01510) (HIB_RS00790)
+for(i in 1:length(moduleblocks)){
+  if ("HIB_01510" %in% rownames(moduleblocks[[i]])==TRUE){
+    print(i)
+  }
+}
+
+# putative HTH-type transcriptional regulator (HIB_01960) (HIB_RS01075)
+for(i in 1:length(moduleblocks)){
+  if ("HIB_01960" %in% rownames(moduleblocks[[i]])==TRUE){
+    print(i)
+  }
+}
+
+# regulator of penicillin binding proteins and beta lactamase transcription (morphogene) (HIB_02160) (HIB_RS01175)
+for(i in 1:length(moduleblocks)){
+  if ("HIB_02160" %in% rownames(moduleblocks[[i]])==TRUE){
+    print(i)
+  }
+}
+
+# putative HTH-type transcriptional regulator (HIB_02370) (HIB_RS01280)
+for(i in 1:length(moduleblocks)){
+  if ("HIB_02370" %in% rownames(moduleblocks[[i]])==TRUE){
+    print(i)
+  }
+}
+
+# DNA-binding transcriptional dual regulator (HIB_02420) (HIB_RS01305)
+for(i in 1:length(moduleblocks)){
+  if ("HIB_02420" %in% rownames(moduleblocks[[i]])==TRUE){
+    print(i)
+  }
+}
+
+# 	bifunctional biotin-[acetylCoA carboxylase] holoenzyme synthetase/ DNA-binding transcriptional repressor, bio-5'-AMP-binding (HIB_02770) (HIB_RS01490)
+for(i in 1:length(moduleblocks)){
+  if ("HIB_02770" %in% rownames(moduleblocks[[i]])==TRUE){
+    print(i)
+  }
+}
+
+# putative transcriptional regulator (HIB_02810) (HIB_RS01510)
+for(i in 1:length(moduleblocks)){
+  if ("HIB_02810" %in% rownames(moduleblocks[[i]])==TRUE){
+    print(i)
+  }
+}
+
+# putative HTH-type transcriptional regulator (HIB_03450) (HIB_RS01280)
+for(i in 1:length(moduleblocks)){
+  if ("HIB_06830" %in% rownames(moduleblocks[[i]])==TRUE){
+    print(i)
+  }
 }
 ```
