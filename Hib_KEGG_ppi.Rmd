@@ -1,0 +1,213 @@
+---
+title: "Hib_KEGG_ppi"
+author: "Kdu Trufen"
+date: "25 de julho de 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r }
+
+hib_pathway_id = list("Metabolic pathways" = "01100",
+                      "Biosynthesis of secondary metabolites" = "01110",
+                      "icrobial metabolism in diverse environments" = "01120",
+                      "Biosynthesis of antibiotics" = "01130",
+                      "Carbon metabolism" = "01200",
+                      "2-Oxocarboxylic acid metabolism" = "01210",
+                      "Fatty acid metabolism" = "01212",
+                      "Biosynthesis of amino acids" = "01230",
+                      "Degradation of aromatic compounds" = "01220",
+                      "Glycolysis / Gluconeogenesis" = "00010",
+                      "Citrate cycle (TCA cycle)" = "00020",
+                      "Pentose phosphate pathway" = "00030",
+                      "Pentose and glucuronate interconversions" = "00040",
+                      "Fructose and mannose metabolism" = "00051",
+                      "Galactose metabolism" = "00052",
+                      "Starch and sucrose metabolism" = "00500",
+                      "Amino sugar and nucleotide sugar metabolism" = "00520",
+                      "Pyruvate metabolism" = "00620",
+                      "Glyoxylate and dicarboxylate metabolism" = "00630",
+                      "Propanoate metabolism" = "00640",
+                      "Butanoate metabolism" = "00650",
+                      "C5-Branched dibasic acid metabolism" = "00660",
+                      "Inositol phosphate metabolism" = "00562",
+                      "Oxidative phosphorylation" = "00190",
+                      "Methane metabolism" = "00680",
+                      "Nitrogen metabolism" = "00910",
+                      "Sulfur metabolism" = "00920",
+                      "Fatty acid biosynthesis" = "00061",
+                      "Fatty acid degradation" = "00071",
+                      "Glycerolipid metabolism" = "00561",
+                      "Glycerophospholipid metabolism" = "00564",
+                      "Biosynthesis of unsaturated fatty acids" = "01040",
+                      "Purine metabolism" = "00230",
+                      "Pyrimidine metabolism" = "00240",
+                      "Alanine, aspartate and glutamate metabolism" = "00250",
+                      "Glycine, serine and threonine metabolism" = "00260",
+                      "Cysteine and methionine metabolism" = "00270",
+                      "Valine, leucine and isoleucine degradation" = "00280",
+                      "Valine, leucine and isoleucine biosynthesis" = "00290",
+                      "Lysine biosynthesis" = "00300",
+                      "Lysine degradation" = "00310",
+                      "Arginine biosynthesis" = "00220",
+                      "Arginine and proline metabolism" = "00330",
+                      "Histidine metabolism" = "00340",
+                      "Tyrosine metabolism" = "00350",
+                      "Phenylalanine metabolism" = "00360",
+                      "Tryptophan metabolism" = "00380",
+                      "Phenylalanine, tyrosine and tryptophan biosynthesis" = "00400",
+                      "Taurine and hypotaurine metabolism" = "00430",
+                      "Selenocompound metabolism" = "00450",
+                      "Cyanoamino acid metabolism" = "00460",
+                      "D-Glutamine and D-glutamate metabolism" = "00471",
+                      "D-Alanine metabolism" = "00473",
+                      "Glutathione metabolism" = "00480",
+                      "Lipopolysaccharide biosynthesis" = "00540",
+                      "Peptidoglycan biosynthesis" = "00550",
+                      "Thiamine metabolism" = "00730",
+                      "Riboflavin metabolism" = "00740",
+                      "Vitamin B6 metabolism" = "00750",
+                      "Nicotinate and nicotinamide metabolism" = "00760",
+                      "Pantothenate and CoA biosynthesis" = "00770",
+                      "Biotin metabolism" = "00780",
+                      "Lipoic acid metabolism" = "00785",
+                      "Folate biosynthesis" = "00790",
+                      "One carbon pool by folate" = "00670",
+                      "Porphyrin and chlorophyll metabolism" = "00860",
+                      "Ubiquinone and other terpenoid-quinone biosynthesis" = "00130",
+                      "Terpenoid backbone biosynthesis" = "00900",
+                      "Carbapenem biosynthesis" = "00332",
+                      "Monobactam biosynthesis" = "00261",
+                      "Streptomycin biosynthesis" = "00521",
+                      "Novobiocin biosynthesis" = "00401",
+                      "Chloroalkane and chloroalkene degradation" = "00625",
+                      "Naphthalene degradation" = "00626",
+                      "RNA polymerase" = "03020",
+                      "Ribosome" = "03010",
+                      "Aminoacyl-tRNA biosynthesis" = "00970",
+                      "Protein export" = "03060",
+                      "Sulfur relay system" = "04122",
+                      "RNA degradation" = "03018",
+                      "DNA replication" = "03030",
+                      "Base excision repair" = "03410",
+                      "Nucleotide excision repair" = "03420",
+                      "Mismatch repair" = "03430",
+                      "Homologous recombination" = "03440",
+                      "ABC transporters" = "02010",
+                      "Phosphotransferase system (PTS)" = "02060",
+                      "Bacterial secretion system" = "03070",
+                      "Two-component system" = "02020",
+                      "Quorum sensing" = "02024",
+                      "Bacterial chemotaxis" = "02030",
+                      "beta-Lactam resistance" = "01501",
+                      "Vancomycin resistance" = "01502",
+                      "Cationic antimicrobial peptide (CAMP) resistance" = "01503"  )
+
+setwd(dir = "~/Dropbox/Hib_Data/")
+
+library(KEGGgraph)
+for (i in 1:length(hib_pathway_id)){ retrieveKGML(pathwayid=hib_pathway_id[[i]], organism="hiu", destfile=paste0("~/Dropbox/Hib_Data/hiu",hib_pathway_id[[i]],".xml")) }
+# retrieveKGML(pathwayid="01100", organism="hiu", destfile="hiu0110.xml")
+# lapply(1:length(hib_pathway_id), function(i) retrieveKGML, pathwayid=hib_pathway_id[[i]], organism="hiu", destfile=paste0("hiu",hib_pathway_id[[i]],".xml") )
+# lapply(hib_pathway_id, retrieveKGML, pathwayid=hib_pathway_id, organism="hiu", destfile=paste0("hiu",hib_pathway_id,".xml") )
+
+
+
+```
+
+# Parse KEGG xml
+```{r, message=FALSE}
+library(KEGG.db)
+
+# lapply(hib_pathway_id, mget, KEGGPATHNAME2ID)
+
+pName = "Purine metabolism"
+pId = mget(pName, KEGGPATHNAME2ID)[[1]]
+tmp <- tempfile()
+
+require(KEGGgraph)
+retrieveKGML(pId, organism="hiu", destfile=tmp, method="wget", quiet=TRUE)
+
+Hib_purine_Graph = parseKGML2Graph(retrieveKGML(pId, organism="hiu", destfile=tmp, method="wget", quiet=TRUE),expandGenes=TRUE)
+nodes(Hib_purine_Graph)
+
+getKEGGnodeData(Hib_purine_Graph)
+
+Hib_purine_pathway = parseKGML(retrieveKGML(pId, organism="hiu", destfile=tmp, method="wget", quiet=TRUE))
+
+parseKGMLexpandMaps(retrieveKGML(pId, organism="hiu", destfile=tmp, method="wget", quiet=TRUE))
+
+getKEGGnodeData(Hib_purine_Graph,'hiu:00230')
+
+```
+
+
+```{r , echo=FALSE}
+Hib_KEGG_xml = list.files(path = "~/Dropbox/Hib_Data/", pattern = "xml")
+
+library(RCurl)
+fileURL <- "https://d396qusza40orc.cloudfront.net/getdata%2Fdata%2Frestaurants.xml"
+
+
+library(XML)
+data <- xmlParse(paste0("~/Dropbox/HibData/", Hib_KEGG_xml[[30]]))
+
+
+
+
+
+library(KEGGgraph)
+
+parseKGML2DataFrame("https://www.genome.jp/kegg-bin/show_pathway?hiu04122")
+
+
+
+parseKGML2Graph(paste0("~/Dropbox/HibData/", Hib_KEGG_xml[[30]]), reactions=TRUE)
+
+parseKGML(paste0("~/Dropbox/HibData/", Hib_KEGG_xml[[30]]))
+
+Hib_graph = list()
+
+Hib_graph = lapply(Hib_KEGG_xml, parseKGML2Graph)
+
+parseKGML2Graph(paste0("~/Dropbox/HibData/",Hib_KEGG_xml[[1]]))
+
+parseKGML2Graph("https://www.kegg.jp/kegg-bin/download?entry=hiu00010&format=kgml")
+
+
+
+
+parseRelation(paste0("~/Dropbox/HibData/", Hib_KEGG_xml[[30]]))
+
+colFile <- system.file("extdata/hsa05210.xml",  package="KEGGgraph")
+g <- parseKGML2Graph(colFile)
+```
+
+```{r , echo=FALSE}
+
+```
+
+```{r , echo=FALSE}
+
+```
+
+```{r , echo=FALSE}
+
+```
+
+```{r , echo=FALSE}
+
+```
+
+```{r , echo=FALSE}
+
+```

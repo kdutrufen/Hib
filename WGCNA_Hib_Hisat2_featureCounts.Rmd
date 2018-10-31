@@ -21,63 +21,8 @@ knitr::opts_chunk$set(echo = TRUE)
 setwd("~/Dropbox/Hib")
 ```
 
-# Protein list
-```{r, message=FALSE}
-library("tidyverse")
-#Haemophilus_influenzae_10810_GCF_000210875_1_proteintable <- read_delim("~/Dropbox/Script/Haemophilus_influenzae_10810.GCF_000210875.1.proteintable.txt", "\t", escape_double = FALSE, trim_ws = TRUE)
-
-Haemophilus_influenzae_10810_GCF_000210875_1_proteintable <- read_delim("~/Dropbox/Hib_Data/Haemophilus_influenzae_10810.GCF_000210875.1.proteintable.txt", "\t", escape_double = FALSE, trim_ws = TRUE)
-Hib_proteins = as.data.frame(Haemophilus_influenzae_10810_GCF_000210875_1_proteintable)
-```
-
-# Gene list
-```{r, message=FALSE}
-library('ballgown')
-#RefSeqgff <- gffRead("~/Dropbox/Script/GCF_000210875.1_ASM21087v1_genomic.gff")
-RefSeqgff <- gffRead("~/Dropbox/Hib_Data/GCF_000210875.1_ASM21087v1_genomic.gff")
-RefSeqgff.genes <- RefSeqgff[RefSeqgff[,3]=="gene",]
-RefSeqgff.genes$Name <- getAttributeField(RefSeqgff.genes$attributes, "Name", attrsep = "; ")
-RefSeqgff.genes$ID <- getAttributeField(RefSeqgff.genes$attributes, "ID", attrsep = "; ")
-RefSeqgff.genes$OldLocusTag <- getAttributeField(RefSeqgff.genes$attributes, "old_locus_tag", attrsep = "; ")
-RefSeqgff.genes$Gene_length = RefSeqgff.genes$end-RefSeqgff.genes$start
-RefSeqgff.genes$product <- Hib_proteins$product[match(RefSeqgff.genes$Name, Hib_proteins$locustag)]
-```
-
-# Read in Hib Matrix form Rsubread alignment
-```{r }
-library(readr)
-# Count matrix v1 (Hisat k -5, featureCounts -M)
-Hib_CountData = read.table("~/Dropbox/Hib_Data/Hib_Hisat2_featureCounts_table_countMultiMappingReads.txt", header=TRUE, sep = "\t", row.names = 1)
-# Hib_CountData <- as.data.frame(read_delim("~/Dropbox/Hib_Data/Hib_Hisat2_featureCounts_table_countMultiMappingReads.txt", "\t", escape_double = FALSE, trim_ws = TRUE, skip = 1))
-
-# Count matrix v2 (Hisat k -2, featureCounts )
-# Hib_CountData = read.table("~/Dropbox/Hib_Data/Hib_Hisat2_k-2_featureCounts_table_2018_09_14.txt", header=TRUE, sep = "\t", row.names = 1)
-
-# Count matrix v3 (Hisat k -5, featureCounts -M --primary)
-# Hib_CountData = read.table("~/Dropbox/Hib_Data/Hib_Hisat2_featureCounts_primary_table.txt", header=TRUE, sep = "\t", row.names = 1)
-
-Hib_CountData$Chr = Hib_CountData$Start = Hib_CountData$End = Hib_CountData$Strand = Hib_CountData$Length = NULL
-
-colnames(Hib_CountData) = c("S01B01", "S01B02", "S01B03", "S01B04", "S02B01", "S02B02", "S02B03", "S02B04", "S03B01", "S03B02", "S03B03", "S03B04", "S04B01", "S04B02", "S04B03", "S04B04", "S05B01", "S05B02", "S05B03", "S05B04", "S06B01", "S06B02", "S06B03", "S06B04")
-
-library(stringr)
-# Remove rrf gene (ribosomal RNA)
-Hib_CountData = Hib_CountData[-which(str_detect(rownames(Hib_CountData), "rrf")==TRUE),]
-# Hib_CountData = Hib_CountData[-which(str_detect(Hib_CountData$Geneid, "rrf")==TRUE),]
-
-# rownames(Hib_CountData) = Hib_CountData$Geneid
-# Hib_CountData = Hib_CountData[,-c(1:6)]
-countData = Hib_CountData
-```
-
-# Sets design
-```{r }
-library('ballgown')
-RefSeq_gff <- gffRead("~/Dropbox/Hib_Data/GCF_000210875.1_ASM21087v1_genomic.gff")
-RefSeq_gff$Name <- getAttributeField(RefSeq_gff$attributes, "Name", attrsep = "; ")
-RefSeq_gff$ID <- getAttributeField(RefSeq_gff$attributes, "ID", attrsep = "; ")
-colnames(RefSeq_gff)
-
+# get_Attribute_Field
+```{r}
 get_Attribute_Field = function (x, field, attrsep = "; ") 
 {
     s = strsplit(x, split = attrsep, fixed = TRUE)
@@ -93,14 +38,51 @@ get_Attribute_Field = function (x, field, attrsep = "; ")
         return(rv)
     })
 }
+```
 
-RefSeq_gff.genes <- RefSeq_gff[RefSeq_gff[,3]=="gene",]
-RefSeq_gff.genes$Name <- get_Attribute_Field(RefSeq_gff.genes$attributes, "Name", attrsep = ";")
-RefSeq_gff.genes$ID <- get_Attribute_Field(RefSeq_gff.genes$attributes, "ID", attrsep = ";")
-RefSeq_gff.genes$OldLocusTag <- get_Attribute_Field(RefSeq_gff.genes$attributes, "old_locus_tag", attrsep = ";")
-#RefSeq_gff.genes$OldLocusTag = make.unique(RefSeq_gff.genes$OldLocusTag)
-colnames(RefSeq_gff.genes)
+# Protein list
+```{r, message=FALSE}
+library(tidyverse)
+Hib_proteins <- read_delim("~/Dropbox/Hib_Data/Haemophilus_influenzae_10810.GCF_000210875.1.proteintable.txt", delim = "\t", escape_double = FALSE, trim_ws = TRUE) %>% as.data.frame
+```
 
+# Gene list
+```{r, message=FALSE}
+library(ballgown)
+library(tidyverse)
+RefSeq_gff.genes <- gffRead("~/Dropbox/Hib_Data/GCF_000210875.1_ASM21087v1_genomic.gff") %>% filter(feature == "gene") %>% mutate(locustag = get_Attribute_Field(attributes, "Name", attrsep = ";")) %>% mutate(ID = get_Attribute_Field(attributes, "ID", attrsep = ";")) %>% mutate(OldLocusTag = get_Attribute_Field(attributes, "old_locus_tag", attrsep = ";")) %>% mutate(Gene_length = end-start) %>% full_join(Hib_proteins) %>% select(Name = locustag, OldLocusTag, product)
+```
+
+# Read in Hib Matrix form Rsubread alignment
+```{r }
+#Hib_CountData = read.csv("~/Dropbox/Hib_Data/Hib_Hisat2_featureCounts_table_countMultiMappingReads.txt", header=TRUE, sep = "\t", row.names = 1)
+library(tidyverse)
+# Count matrix v1 (Hisat k -5, featureCounts -M)
+# Hib_CountData <- read_delim("~/Dropbox/Hib_Data/Hib_Hisat2_featureCounts_table_countMultiMappingReads.txt", "\t", escape_double = FALSE, trim_ws = TRUE, skip = 1) %>% as.data.frame
+
+# Count matrix v2 (Hisat k -2, featureCounts )
+# Hib_CountData <- read_delim("~/Dropbox/Hib_Data/2_featureCounts_table_2018_09_14.txt", "\t", escape_double = FALSE, trim_ws = TRUE, skip = 1) %>% as.data.frame
+
+# Count matrix v3 (Hisat k -5, featureCounts -M --primary)
+Hib_CountData <- read_delim("~/Dropbox/Hib_Data/Hib_Hisat2_featureCounts_primary_table.txt", "\t", escape_double = FALSE, trim_ws = TRUE, skip = 1) %>% as.data.frame
+
+library(stringr)
+# Remove rrf gene (ribosomal RNA)
+# set Geneid as row names
+# remove unwanted columns
+# change column names
+# countData = Hib_CountData %>% filter(!str_detect(Geneid, pattern = "rrf")) %>% column_to_rownames('Geneid') %>% select(-c(Chr, Start, End, Strand, Length)) %>% setNames(c("S01B01", "S01B02", "S01B03", "S01B04", "S02B01", "S02B02", "S02B03", "S02B04", "S03B01", "S03B02", "S03B03", "S03B04", "S04B01", "S04B02", "S04B03", "S04B04", "S05B01", "S05B02", "S05B03", "S05B04", "S06B01", "S06B02", "S06B03", "S06B04"))
+
+Hib_CountData = Hib_CountData %>% filter(!str_detect(Geneid, pattern = "rrf")) %>% column_to_rownames('Geneid') %>% select(-c(Chr, Start, End, Strand, Length)) %>% setNames( sort( as.vector( outer( paste0("S0", 1:6), paste0("B0", 1:4), paste0 ) ) ) )
+
+Hib_CountData$S03B02 = NULL
+
+THRESHOLD <- 0.01
+LFC = 1
+```
+
+# Rename row names to old locus tag
+```{r }
 # Rename Hib genes to old locus tag (available at KEGG)
 for (i in 1:nrow(RefSeq_gff.genes)){
   if (is.na(RefSeq_gff.genes$OldLocusTag[i])=="FALSE"){
@@ -108,24 +90,32 @@ for (i in 1:nrow(RefSeq_gff.genes)){
   }
 }
 
-Hib_CountData = Hib_CountData[ order(row.names(Hib_CountData)), ]
-
-library(stringr)
-# Remove ribosomal RNA
-Hib_CountData = Hib_CountData[-which(str_detect(rownames(Hib_CountData), "HIB_r")==TRUE),]
-countData = Hib_CountData
+# Sort row names alphabetically
+# removeribosomal RNA
+Hib_CountData = Hib_CountData %>% rownames_to_column %>% arrange(rowname) %>% filter(!str_detect(rowname, pattern = "HIB_r")) %>% column_to_rownames('rowname')
 ```
 
+# Sets design
 ```{r }
-Hib_unaligned_CountData <- as.data.frame(read_delim("~/Dropbox/Hib_Data/unaligned_spades_salmon_counts_matrix.tsv", "\t", escape_double = FALSE, trim_ws = TRUE, skip = 0))
+# countData = Hib_CountData
+HibDesign = data.frame(row.names = colnames( Hib_CountData ), condition = str_sub( colnames(Hib_CountData), start = 1L, end = 3L ) )
 
-rownames(Hib_unaligned_CountData) = Hib_unaligned_CountData$transcript
-Hib_unaligned_CountData = Hib_unaligned_CountData[,-1]
+group=as.factor(HibDesign$condition)
+design <- model.matrix(~0 + group)
+colnames(design) <- levels(group)
+rownames(design) = colnames(Hib_CountData)
+```
+
+# Unaligned
+```{r }
+Hib_unaligned_CountData <- as.data.frame(read_delim("~/Dropbox/Hib_Data/unaligned_spades_salmon_counts_matrix.tsv", "\t", escape_double = FALSE, trim_ws = TRUE, skip = 0)) %>% column_to_rownames("transcript")
 
 library(seqinr)
 Hib_unaligned_fasta = read.fasta("~/Dropbox/Hib_Data/Hib_genes_b2g_HI_Supragenome.fasta", as.string=TRUE)
 
-Hib_unaligned_CountData = Hib_unaligned_CountData[rownames(Hib_unaligned_CountData) %in% names(Hib_unaligned_fasta),]
+Hib_unaligned_CountData = Hib_unaligned_CountData %>% rownames_to_column %>% filter(rowname %in% names(Hib_unaligned_fasta))
+
+# Hib_unaligned_CountData = Hib_unaligned_CountData[rownames(Hib_unaligned_CountData) %in% names(Hib_unaligned_fasta),]
 
 rownames(Hib_unaligned_CountData)[rownames(Hib_unaligned_CountData)=="NODE_15_length_7629_cov_3174.55_g0_i1"] = "H733_0475"
 
@@ -137,7 +127,6 @@ countData = rbind(Hib_CountData, Hib_unaligned_CountData)
 ```{r, message=FALSE}
 library("WGCNA")
 library("cluster")
-#library("manipulate")
 library("RUVSeq")
 library("EDASeq")
 options(stringsAsFactors = FALSE)
@@ -169,7 +158,7 @@ filtered <- d[keep,]
 summary(keep)
 dim(filtered )
 
-# d <- DGEList(counts=filtered$counts, lib.size = colSums(filtered$counts), group=group)
+d <- DGEList(counts=filtered$counts, lib.size = colSums(filtered$counts), group=group)
 d <- calcNormFactors(d , method="TMM")
 d <- estimateDisp(d , design , tagwise=TRUE, robust=TRUE)
 fit <- glmFit(d , design)

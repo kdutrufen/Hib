@@ -11,27 +11,54 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Set dir
 ```{r, message = FALSE}
-#rm(list=ls())
+rm(list=ls())
 setwd("~/Dropbox/Hib/")
+```
+
+```{r, message = FALSE}
+detachAllPackages <- function() {
+    
+    basic.packages <- c("package:stats","package:graphics","package:grDevices","package:utils","package:datasets","package:methods","package:base")
+    
+    package.list <- search()[ifelse(unlist(gregexpr("package:",search()))==1,TRUE,FALSE)]
+    
+    package.list <- setdiff(package.list,basic.packages)
+    
+    if (length(package.list)>0)  for (package in package.list) detach(package, character.only=TRUE)
+    
+}
+
+detachAllPackages()
 ```
 
 # Read in Hib Matrix form Rsubread alignment
 ```{r }
-#Hib_CountData = read.csv("~/Dropbox/Hib_Data/Hib_Hisat2_featureCounts_table_countMultiMappingReads.txt", header=TRUE, sep = "\t", row.names = 1)
 library(readr)
-Hib_CountData <- as.data.frame(read_delim("~/Dropbox/Hib_Data/Hib_Hisat2_featureCounts_table_countMultiMappingReads.txt", "\t", escape_double = FALSE, trim_ws = TRUE, skip = 1))
+# Count matrix v1 (Hisat k -5, featureCounts -M)
+# Hib_CountData = read.table("~/Dropbox/Hib_Data/Hib_Hisat2_featureCounts_table_countMultiMappingReads.txt", header=TRUE, sep = "\t", row.names = 1)
+# Hib_CountData <- as.data.frame(read_delim("~/Dropbox/Hib_Data/Hib_Hisat2_featureCounts_table_countMultiMappingReads.txt", "\t", escape_double = FALSE, trim_ws = TRUE, skip = 1))
+
+# Count matrix v2 (Hisat k -2, featureCounts )
+# Hib_CountData = read.table("~/Dropbox/Hib_Data/Hib_Hisat2_k-2_featureCounts_table_2018_09_14.txt", header=TRUE, sep = "\t", row.names = 1)
+
+# Count matrix v3 (Hisat k -5, featureCounts -M --primary)
+Hib_CountData = read.table("~/Dropbox/Hib_Data/Hib_Hisat2_featureCounts_primary_table.txt", header=TRUE, sep = "\t", row.names = 1)
+
+Hib_CountData$Chr = Hib_CountData$Start = Hib_CountData$End = Hib_CountData$Strand = Hib_CountData$Length = NULL
+
+colnames(Hib_CountData) = c("S01B01", "S01B02", "S01B03", "S01B04", "S02B01", "S02B02", "S02B03", "S02B04", "S03B01", "S03B02", "S03B03", "S03B04", "S04B01", "S04B02", "S04B03", "S04B04", "S05B01", "S05B02", "S05B03", "S05B04", "S06B01", "S06B02", "S06B03", "S06B04")
 
 library(stringr)
 # Remove rrf gene (ribosomal RNA)
-Hib_CountData = Hib_CountData[-which(str_detect(Hib_CountData$Geneid, "rrf")==TRUE),]
+Hib_CountData = Hib_CountData[-which(str_detect(rownames(Hib_CountData), "rrf")==TRUE),]
+# Hib_CountData = Hib_CountData[-which(str_detect(Hib_CountData$Geneid, "rrf")==TRUE),]
 
-rownames(Hib_CountData) = Hib_CountData$Geneid
-Hib_CountData = Hib_CountData[,-c(1:6)]
-colnames(Hib_CountData) = c("S01B01", "S01B02", "S01B03", "S01B04", "S02B01", "S02B02", "S02B03", "S02B04", "S03B01", "S03B02", "S03B03", "S03B04", "S04B01", "S04B02", "S04B03", "S04B04", "S05B01", "S05B02", "S05B03", "S05B04", "S06B01", "S06B02", "S06B03", "S06B04")
+# rownames(Hib_CountData) = Hib_CountData$Geneid
+# Hib_CountData = Hib_CountData[,-c(1:6)]
 countData = Hib_CountData
 
-THRESHOLD <- 1
-LFC = 2
+THRESHOLD <- 0.05
+LFC = 1
 ```
 
 # Sets design
@@ -81,19 +108,19 @@ countData = Hib_CountData
 ```
 
 ```{r }
-# Hib_unaligned_CountData <- as.data.frame(read_delim("~/Dropbox/Hib_Data/unaligned_spades_salmon_counts_matrix.tsv", "\t", escape_double = FALSE, trim_ws = TRUE, skip = 0))
-# 
-# rownames(Hib_unaligned_CountData) = Hib_unaligned_CountData$transcript
-# Hib_unaligned_CountData = Hib_unaligned_CountData[,-1]
-# 
-# library(seqinr)
-# Hib_unaligned_fasta = read.fasta("~/Dropbox/Hib_Data/Hib_genes_b2g_HI_Supragenome.fasta", as.string=TRUE)
-# 
-# Hib_unaligned_CountData = Hib_unaligned_CountData[rownames(Hib_unaligned_CountData) %in% names(Hib_unaligned_fasta),]
-# 
-# rownames(Hib_unaligned_CountData)[rownames(Hib_unaligned_CountData)=="NODE_15_length_7629_cov_3174.55_g0_i1"] = "H733_0475"
-# 
-# countData = rbind(Hib_CountData, Hib_unaligned_CountData)
+Hib_unaligned_CountData <- as.data.frame(read_delim("~/Dropbox/Hib_Data/unaligned_spades_salmon_counts_matrix.tsv", "\t", escape_double = FALSE, trim_ws = TRUE, skip = 0))
+
+rownames(Hib_unaligned_CountData) = Hib_unaligned_CountData$transcript
+Hib_unaligned_CountData = Hib_unaligned_CountData[,-1]
+
+library(seqinr)
+Hib_unaligned_fasta = read.fasta("~/Dropbox/Hib_Data/Hib_genes_b2g_HI_Supragenome.fasta", as.string=TRUE)
+
+Hib_unaligned_CountData = Hib_unaligned_CountData[rownames(Hib_unaligned_CountData) %in% names(Hib_unaligned_fasta),]
+
+rownames(Hib_unaligned_CountData)[rownames(Hib_unaligned_CountData)=="NODE_15_length_7629_cov_3174.55_g0_i1"] = "H733_0475"
+
+countData = rbind(Hib_CountData, Hib_unaligned_CountData)
 ```
 
 # Sets design
@@ -104,17 +131,12 @@ HibDesign1 = data.frame(row.names = colnames( countData ), condition = rep(c("S0
 ```{r }
 col.cell <- c("purple","orange", "blue", "red", "green", "black")[as.factor(HibDesign1$condition)]
 par(mar=c(6,6,3,3))
-barplot(c(mean(colSums(countData)), colSums(countData)), names.arg=c("m?dia", colnames(countData)), col=c("yellow", col.cell), las=2, main="", xlab="", ylab="", ylim=c(0,max(colSums(countData))))
-title(ylab="Tamanho da biblioteca", line=4, cex.lab=1.5)
+barplot(c(mean(colSums(countData)), colSums(countData)), names.arg=c("Average", colnames(countData)), col=c("yellow", col.cell), las=2, main="", xlab="", ylab="", ylim=c(0,max(colSums(countData))))
+title(ylab="Library sizes", line=4, cex.lab=1.5)
 title(xlab="Amostras", line=4, cex.lab=1.5)
 abline(h=2e+6, col="black")
 ```
 
-# Calls for libraries
-```{r, message=FALSE}
-library("RUVSeq")
-library("EDASeq")
-```
 
 ```{r }
 library(ggplot2)
@@ -125,25 +147,60 @@ par(mar=c(6,6,3,3))
 sumdata=data.frame(Counts = c(mean(colSums(countData)), (apply(countData,2,sum))))
 sumdata$Samples=c("Average", colnames(countData))
 
-barplot = ggplot(data=sumdata, aes(x=Samples, y=Counts, fill=Samples)) + geom_bar(colour="black", stat="identity", fill = c("yellow", col.cell) )
-barplot = barplot + theme(axis.text.x = element_text(angle = 90, hjust = 1))
-barplot + geom_hline(mapping = NULL, data = NULL, yintercept = 2e+06, na.rm = FALSE, show.legend = NA, colour="black")
+ggplot(data=sumdata, aes(x=Samples, y=Counts, fill=Samples)) + geom_bar(colour="black", stat="identity", fill = c("yellow", col.cell) ) + theme_bw() + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + geom_hline(mapping = NULL, data = NULL, yintercept = 2e+6, na.rm = FALSE, show.legend = NA, colour="black")
 ```
 
-# Least significantly DE genes based on a first-pass DE analysis performed prior to RUVg normalization.
+# Noise filtering x lost genes
 ```{r, message=FALSE}
 library("edgeR")
-group=as.factor(HibDesign1[,1])
+group=as.factor(HibDesign1$condition)
 design <- model.matrix(~0 + group)
 colnames(design) <- levels(group)
 rownames(design) = colnames(countData)
+
 d <- DGEList(counts=countData, lib.size = colSums(countData), group=group)
+
+keep = list()
+for (i in 1:20){
+  keep[[i]] <- rowSums(cpm(d)> i) >= 4
+}
+sum_keep = lapply(keep, sum)
+sum_keep_r = lapply(1:length(sum_keep), function(x){ nrow(countData) - sum_keep[[x]] } )
+
+par(mfrow=c(1,2), mar=c(8.1,4.1,4.1,2.1))
+plot(unlist(sum_keep), xlab = "Filter", ylab = "NUmber of genes left")
+plot(unlist(sum_keep_r), xlab = "Filter", ylab = "NUmber of genes removed")
+```
+
+
+
+# Least significantly DE genes based on a first-pass DE analysis performed prior to RUVg normalization.
+```{r, message=FALSE}
+library("RUVSeq")
+library("EDASeq")
+library("edgeR")
+group=as.factor(HibDesign1$condition)
+design <- model.matrix(~0 + group)
+colnames(design) <- levels(group)
+rownames(design) = colnames(countData)
+
+d <- DGEList(counts=countData, lib.size = colSums(countData), group=group)
+
+myCPM = cpm(d)
+cpm(1, mean(d$samples$lib.size))
+CPMthershold = round(cpm(1, mean(d$samples$lib.size)), digits=2)
+keep <- rowSums(cpm(d)> as.vector(CPMthershold)) >= 4
+filtered <- d[keep,]
+summary(keep)
+dim(filtered )
+
+# d <- DGEList(counts=filtered$counts, lib.size = colSums(filtered$counts), group=group)
 d <- calcNormFactors(d , method="TMM")
 d <- estimateDisp(d , design , tagwise=TRUE, robust=TRUE)
 fit <- glmFit(d , design)
 lrt <- glmLRT(fit ,coef=2:6)
 top <-   topTags(lrt, n=nrow(d))$table
-empirical <-   rownames(countData)[which(!(rownames(countData) %in% rownames(top)[1:500]))]
+empirical <-   rownames(filtered)[which(!(rownames(filtered) %in% rownames(top)[1:1000]))]
 ```
 
 # Here, we consider all but the top 500 genes as ranked by edgeR p-values
@@ -155,21 +212,149 @@ set2 <- RUVg(as.matrix(d), empirical, k=1)
 ```
 
 ```{r}
-col.cell <- c("purple","orange", "blue", "red", "green", "black")[as.factor(HibDesign1[,1])]
+col.cell <- c("purple","orange", "blue", "red", "green", "black", "cyan", "darkgoldenrod", "darkorchid", "darkslategray")[as.factor(HibDesign1$condition)]
 # plotRLE creates relative log expression (RLE) plot, initially proposed to measure the overall quality of a dataset 
 # plotRLE can also be used to visualize the presence of unwanted batch effects in the data
-par(mfrow=c(1,2))
-plotRLE(as.matrix(countData), outline=FALSE, ylim=c(-4, 4), col=col.cell)
-plotRLE(set2$normalizedCounts, outline=FALSE, ylim=c(-2, 2), col=col.cell)
+par(mfrow=c(1,2), mar=c(8.1,4.1,4.1,2.1))
+plotRLE(as.matrix(filtered$counts), outline=FALSE, ylim=c(-4, 4), col=col.cell, main = "Samples with \n unwanted variation", las=2, cex.axis = 0.8, style = "full",
+       outlier.alpha = 0.1, outlier.shape = 3, outlier.size = 0, legend = TRUE)
+legend("topright", legend = levels(group), col=unique(col.cell), ncol=2, cex=0.7, border = "black", fill = unique(col.cell))
+mtext(side = 1, text = "Samples", line = 7)
+mtext(side = 2, text = "Relative Log Expression (RLE)", line = 1.5)
+
+plotRLE(set2$normalizedCounts, outline=FALSE, ylim=c(-4, 4), col=col.cell, main = "Samples without \n unwanted variation", las=2, cex.axis = 0.8, style = "full",
+       outlier.alpha = 0.1, outlier.shape = 3, outlier.size = 0)
+legend("topright", legend = levels(group), col=unique(col.cell), ncol=2, cex=0.7, border = "black", fill = unique(col.cell))
+mtext(side = 1, text = "Samples", line = 7)
+mtext(side = 2, text = "Relative Log Expression (RLE)", line = 1.5) 
 ```
 
 # Set design, removing batch effect
 # Create the design matrix
 ```{r}
-HibDesign2 = data.frame(row.names = colnames( countData ), condition = HibDesign1$condition,  set2$W)
-design = model.matrix(~0+group+set2$W, data = HibDesign2)
-colnames(design) <- c(levels(group), "W")
-group=as.factor(HibDesign1$condition)
+# HibDesign2 = data.frame(row.names = colnames( countData ), condition = HibDesign1$condition,  set2$W)
+# design = model.matrix(~0+group+set2$W, data = HibDesign2)
+# colnames(design) <- c(levels(group), "W")
+# group=as.factor(HibDesign1$condition)
+
+HibDesign2 = data.frame(row.names = colnames( set2$normalizedCounts ), condition = HibDesign1$condition)
+design = model.matrix(~0+group, data = HibDesign2)
+colnames(design) <- c(levels(group))
+group=as.factor(HibDesign2$condition)
+```
+
+# New Count Data, batch corrected
+```{r}
+countData=set2$normalizedCounts
+```
+
+# PCA (factoextra/FactoMineR)
+```{r}
+library(factoextra)
+library(FactoMineR)
+res.pca <- PCA(set2$normalizedCounts, graph = FALSE)
+# res.pca <- PCA(t(set2$normalizedCounts), graph = FALSE)
+print(res.pca)
+(eig.val <- get_eigenvalue(res.pca))
+fviz_eig(res.pca, addlabels = TRUE, ylim = c(0, 100))
+```
+
+# Graph of variables
+```{r}
+(var <- get_pca_var(res.pca))
+
+# Coordinates
+head(var$coord)
+
+# Cos2: quality on the factore map
+head(var$cos2)
+
+# Contributions to the principal components
+head(var$contrib)
+
+fviz_pca_var(res.pca, col.var = "black")
+
+library(corrplot)
+corrplot(var$cos2, is.corr=FALSE)
+
+fviz_cos2(res.pca, choice = "var", axes = 1:2)
+
+# Color by cos2 values: quality on the factor map
+fviz_pca_var(res.pca, col.var = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), 
+             repel = TRUE # Avoid text overlapping
+             )
+
+# Change the transparency by cos2 values
+fviz_pca_var(res.pca, alpha.var = "cos2")
+
+library("corrplot")
+corrplot(var$contrib, is.corr=FALSE)  
+
+# Contributions of variables to PC1
+fviz_contrib(res.pca, choice = "var", axes = 1, top = 10)
+
+# Contributions of variables to PC2
+fviz_contrib(res.pca, choice = "var", axes = 2, top = 10)
+
+# The total contribution to PC1 and PC2 is obtained with the following R code:
+fviz_contrib(res.pca, choice = "var", axes = 1:2, top = 10)
+
+# The most important (or, contributing) variables can be highlighted on the correlation plot as follow
+fviz_pca_var(res.pca, col.var = "contrib",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07")
+             )
+
+# Change the transparency by contrib values
+fviz_pca_var(res.pca, alpha.var = "contrib")
+```
+
+# Graph of individuals
+```{r}
+(ind <- get_pca_ind(res.pca))
+
+# Coordinates of individuals
+head(ind$coord)
+
+# Quality of individuals
+head(ind$cos2)
+
+# Contributions of individuals
+head(ind$contrib)
+
+# The fviz_pca_ind() is used to produce the graph of individuals
+fviz_pca_ind(res.pca, col.ind = "cos2", 
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE # Avoid text overlapping (slow if many points)
+             )
+
+# You can also change the point size according the cos2 of the corresponding individuals:
+
+fviz_pca_ind(res.pca, pointsize = "cos2", 
+             pointshape = 21, fill = "#E7B800",
+             repel = TRUE # Avoid text overlapping (slow if many points)
+             )
+
+# To change both point size and color by cos2, try this:
+
+fviz_pca_ind(res.pca, col.ind = "cos2", pointsize = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE # Avoid text overlapping (slow if many points)
+             )
+
+# To create a bar plot of the quality of representation (cos2) of individuals on the factor map, you can use the function fviz_cos2() as previously described for variables:
+
+fviz_cos2(res.pca, choice = "ind")
+
+# To visualize the contribution of individuals to the first two principal components, type this:
+# Total contribution on PC1 and PC2
+fviz_contrib(res.pca, choice = "ind", axes = 1:2)
+
+fviz_pca_biplot(res.pca, 
+                col.ind = HibDesign2$condition, palette = "jco", 
+                addEllipses = TRUE, label = "var",
+                col.var = "black", repel = TRUE,
+                legend.title = "Samples") 
 ```
 
 # edgeR
@@ -179,12 +364,12 @@ group=as.factor(HibDesign1$condition)
 
 # Coverts the count matrix into an edgeR object
 ```{r}
-d <- DGEList(counts=countData, lib.size = colSums(countData), group=group)
+d <- DGEList(counts=set2$normalizedCounts, lib.size = colSums(set2$normalizedCounts), group=group)
 ```
 
 # How many genes have 0 counts across all samples
 ```{r}
-table(rowSums(d$counts==0)==24)
+# table(rowSums(d$counts==0)==24)
 ```
 
 # Pre-filtering
@@ -192,18 +377,18 @@ table(rowSums(d$counts==0)==24)
 # Setting CPM threshold
 # As a general rule, a good threshold can be chosen by identifying the CPM that corresponds to a count of 10
 # Direct counts do not account for differences in library sizes between samples.
-myCPM = cpm(d)
-cpm(10, mean(d$samples$lib.size))
-CPMthershold = round(cpm(10, mean(d$samples$lib.size)), digits=2)
+# myCPM = cpm(d)
+# cpm(1, mean(d$samples$lib.size))
+# CPMthershold = round(cpm(1, mean(d$samples$lib.size)), digits=2)
 ```
 
 # Filter low expression tags
 ```{r}
 # keep only those genes that have at least CPMthershold read per million in at least 4 samples
-keep <- rowSums(cpm(d)> as.vector(CPMthershold)) >= 4
-filtered <- d[keep,]
-summary(keep)
-dim(filtered )
+# keep <- rowSums(cpm(d)> as.vector(CPMthershold)) >= 4
+# filtered <- d[keep,]
+# summary(keep)
+# dim(filtered )
 ```
 
 # Normalization for composition bias
@@ -212,7 +397,7 @@ dim(filtered )
 # normalizes for RNA composition, yielding the effective library size
 # The calcNormFactors() function returns the DGEList argument with only the norm.factors changed.
 #tmm <- calcNormFactors(d , "TMM") 
-tmm <- calcNormFactors(filtered , "TMM") 
+tmm <- calcNormFactors(d , "TMM") 
 tpm = cpm(tmm, normalized.lib.sizes=TRUE)
 logtmm = cpm(tmm, log=TRUE)
 logcounts <- cpm(filtered,log=TRUE)
@@ -254,6 +439,45 @@ plotMD(logcounts,column = 11)
 abline(h=0,col="grey")
 ```
 
+# 2D PCA plot
+```{r}
+library(ggfortify)
+cols = c("S01" = "purple", "S02" = "orange", "S03" = "blue", "S04" = "red", "S05" = "green", "S06" = "black") 
+
+df = as.data.frame(t(set2$normalizedCounts))
+df$Condition = HibDesign2$condition
+
+autoplot(prcomp(df[,1:(ncol(df)-1)]), data = df ,shape = FALSE, colour = 'Condition', label = TRUE, label.size = 4, main = "") + theme_bw() + theme(axis.text.x=element_text(face="plain", color="black", size=20, angle=0)) + theme(axis.text.y=element_text(face="plain", color="black", size=20, angle=0)) + theme(axis.title.y = element_text(size = rel(3.0), angle = 90)) + theme(axis.title.x = element_text(size = rel(3.0), angle = 0)) + theme(plot.title = element_text(lineheight=3, face="plain", color="black", size=29)) + scale_colour_manual(name="Conditions", values=cols) + theme(legend.text=element_text(size=15))
+```
+
+# 3D PCA plot
+```{r}
+library(rgl)
+library(mclust)
+library(plot3D)
+
+Hib.pca <- prcomp(as.matrix(tmm), center = TRUE, scale. = TRUE)
+
+Hib.pca <- prcomp(as.matrix(set2$normalizedCounts), center = TRUE, scale. = TRUE)
+
+
+# plot(Hib.pca, type = "l")
+# fit <- Mclust(Hib.pca$rotation[,1:3], G=1:9, modelNames = "EVI")
+
+options(digits = 4)
+
+summary_pca = summary(Hib.pca)
+eigs <- Hib.pca$sdev^2
+rbind(SD = sqrt(eigs), Proportion = eigs/sum(eigs), Cumulative = cumsum(eigs)/sum(eigs))
+
+colors <- c("purple","orange", "blue", "red", "green", "black", "cyan", "darkgoldenrod", "darkorchid", "darkslategray")
+points <- c(0,1,2,15,16,17)
+
+
+plot3d(Hib.pca$rotation[,1:3], col=colors[as.factor(HibDesign2$condition)], pch=points[as.factor(HibDesign2$condition)], xlab = paste0("PCA1 (", summary_pca$importance[2,1]*100 ," %)"), ylab = paste0("PCA2 (", summary_pca$importance[2,2]*100 ," %)"), zlab = paste0("PCA3 (", summary_pca$importance[2,3]*100 ," %)"), type = "s", size = 0.5)
+text3d(x=Hib.pca$rotation[,1],y=Hib.pca$rotation[,2],z=Hib.pca$rotation[,3],texts=rownames(Hib.pca$rotation), col=colors[as.factor(HibDesign2$condition)])
+```
+
 # Multidimensional scaling plot of distances between gene expression profiles
 ```{r}
 # Replicate samples from the same group cluster together in the plot, while samples from different groups form separate clusters.
@@ -282,6 +506,8 @@ plotMDS(logCPM, main="logFC distance")
 # An alternative to plotMDS for examining relationships between samples is using hierarchical clustering
 # We can do this using the heatmap.2() function from the gplots package
 #  In this example heatmap.2 calculates a matrix of euclidean distances from the logCPM (logcounts object) for the 500 most variable genes.
+col.cell <- c("purple","orange", "blue", "red", "green", "black", "cyan", "darkgoldenrod", "darkorchid", "darkslategray")[as.factor(HibDesign2$condition)]
+
 library("gplots")
 library("RColorBrewer")
 var_genes <- apply(logcounts, 1, var) # We estimate the variance for each row in the logcounts matrix
@@ -367,41 +593,72 @@ plotRLE(as.matrix(tpm), outline=FALSE, ylim=c(-2, 2), col=col.cell)
 # genes are detected that are DE between groups
 # This is done by defining the null hypothesis as S02 - S01 = 0.
 # For example, setting S02 - S01 in makeContrasts would return positive log-fold changes for genes that are upregulated in the sample T05h.
-design.pairs <-   function(levels) {
-  n <- length(levels)
-  design <- matrix(0,n,choose(n,2))
-  rownames(design) <- levels
-  colnames(design) <- 1:choose(n,2)
-  k <- 0
-  for (i in 1:(n-1))
-    for (j in (i+1):n) {
-      k <- k+1
-      design[j,k] <- 1
-      design[i,k] <- -1
-      colnames(design)[k] <- paste(levels[j],"-",levels[i],sep="")
-    }
-  design
-}
-
-con = design.pairs(c("S01", "S02", "S03", "S04", "S05", "S06", "W"))
+# design.pairs <-   function(levels) {
+#   n <- length(levels)
+#   design <- matrix(0,n,choose(n,2))
+#   rownames(design) <- levels
+#   colnames(design) <- 1:choose(n,2)
+#   k <- 0
+#   for (i in 1:(n-1))
+#     for (j in (i+1):n) {
+#       k <- k+1
+#       design[j,k] <- 1
+#       design[i,k] <- -1
+#       colnames(design)[k] <- paste(levels[j],"-",levels[i],sep="")
+#     }
+#   design
+# }
+# 
+# # con = design.pairs(c("S01", "S02", "S03", "S04", "S05", "S06", "W"))
+# con = design.pairs(c("S01", "S02", "S03", "S04", "S05", "S06"))
 
 nSets = 15
-contrasts = vector(mode = "list", length = nSets)
-con1 = contrasts[[1]] = makeContrasts(con[,1], levels=design) #makeContrasts(c(-1,1,0,0,0,0), levels=design)
-con2 = contrasts[[2]] = makeContrasts(con[,2], levels=design) #makeContrasts(c(-1,0,1,0,0,0), levels=design)
-con3 = contrasts[[3]] = makeContrasts(con[,3], levels=design) #makeContrasts(c(-1,0,0,1,0,0), levels=design)
-con4 = contrasts[[4]] = makeContrasts(con[,4], levels=design) #makeContrasts(c(-1,0,0,0,1,0), levels=design)
-con5 = contrasts[[5]] = makeContrasts(con[,5], levels=design) #makeContrasts(c(-1,0,0,0,0,1), levels=design)
-con6 = contrasts[[6]] = makeContrasts(con[,7], levels=design) #makeContrasts(c(0,-1,1,0,0,0), levels=design)
-con7 = contrasts[[7]] = makeContrasts(con[,8], levels=design) #makeContrasts(c(0,-1,0,1,0,0), levels=design)
-con8 = contrasts[[8]] = makeContrasts(con[,9], levels=design) #makeContrasts(c(0,-1,0,0,1,0), levels=design)
-con9 = contrasts[[9]] = makeContrasts(con[,10], levels=design) #makeContrasts(c(0,-1,0,0,0,1), levels=design)
-con10 = contrasts[[10]] = makeContrasts(con[,12], levels=design) #makeContrasts(c(0,0,-1,1,0,0), levels=design)
-con11 = contrasts[[11]] = makeContrasts(con[,13], levels=design) #makeContrasts(c(0,0,-1,0,1,0), levels=design)
-con12 = contrasts[[12]] = makeContrasts(con[,14], levels=design) #makeContrasts(c(0,0,-1,0,0,1), levels=design)
-con13 = contrasts[[13]] = makeContrasts(con[,16], levels=design) #makeContrasts(c(0,0,0,-1,1,0), levels=design)
-con14 = contrasts[[14]] = makeContrasts(con[,17], levels=design) #makeContrasts(c(0,0,0,-1,0,1), levels=design)
-con15 = contrasts[[15]] = makeContrasts(con[,19], levels=design) #makeContrasts(c(0,0,0,0,-1,1), levels=design)
+# contrasts = vector(mode = "list", length = nSets)
+# con1 = contrasts[[1]] = makeContrasts(con[,1], levels=design) #makeContrasts(c(-1,1,0,0,0,0), levels=design)
+# con2 = contrasts[[2]] = makeContrasts(con[,2], levels=design) #makeContrasts(c(-1,0,1,0,0,0), levels=design)
+# con3 = contrasts[[3]] = makeContrasts(con[,3], levels=design) #makeContrasts(c(-1,0,0,1,0,0), levels=design)
+# con4 = contrasts[[4]] = makeContrasts(con[,4], levels=design) #makeContrasts(c(-1,0,0,0,1,0), levels=design)
+# con5 = contrasts[[5]] = makeContrasts(con[,5], levels=design) #makeContrasts(c(-1,0,0,0,0,1), levels=design)
+# con6 = contrasts[[6]] = makeContrasts(con[,7], levels=design) #makeContrasts(c(0,-1,1,0,0,0), levels=design)
+# con7 = contrasts[[7]] = makeContrasts(con[,8], levels=design) #makeContrasts(c(0,-1,0,1,0,0), levels=design)
+# con8 = contrasts[[8]] = makeContrasts(con[,9], levels=design) #makeContrasts(c(0,-1,0,0,1,0), levels=design)
+# con9 = contrasts[[9]] = makeContrasts(con[,10], levels=design) #makeContrasts(c(0,-1,0,0,0,1), levels=design)
+# con10 = contrasts[[10]] = makeContrasts(con[,12], levels=design) #makeContrasts(c(0,0,-1,1,0,0), levels=design)
+# con11 = contrasts[[11]] = makeContrasts(con[,13], levels=design) #makeContrasts(c(0,0,-1,0,1,0), levels=design)
+# con12 = contrasts[[12]] = makeContrasts(con[,14], levels=design) #makeContrasts(c(0,0,-1,0,0,1), levels=design)
+# con13 = contrasts[[13]] = makeContrasts(con[,16], levels=design) #makeContrasts(c(0,0,0,-1,1,0), levels=design)
+# con14 = contrasts[[14]] = makeContrasts(con[,17], levels=design) #makeContrasts(c(0,0,0,-1,0,1), levels=design)
+# con15 = contrasts[[15]] = makeContrasts(con[,19], levels=design) #makeContrasts(c(0,0,0,0,-1,1), levels=design)
+
+
+contr.matrix <- makeContrasts(con1 = S02 - S01,
+                              con2 = S03 - S01,
+                              con3 = S04 - S01,
+                              con4 = S05 - S01,
+                              con5 = S06 - S01,
+                              con6 = S03 - S02,
+                              con7 = S04 - S02,
+                              con8 = S05 - S02,
+                              con9 = S06 - S02,
+                              con10 = S04 - S03,
+                              con11 = S05 - S03,
+                              con12 = S06 - S03,
+                              con13 = S05 - S04,
+                              con14 = S06 - S04,
+                              con15 = S06 - S05,
+                              levels = c("S01", "S02", "S03", "S04", "S05", "S06"))
+
+LRT = topDE = topDE1 = topDE2 = nDEGs1 = edgeRDEnames = list()
+for (i in 1:nSets){LRT[[i]] = glmLRT(fit, contrast=contr.matrix[,i])}
+for (i in 1:nSets){topDE[[i]] = topTags(LRT[[i]] , n=nrow(LRT[[i]]), sort.by = "p.value")}
+for (i in 1:nSets){topDE1[[i]] = topDE[[i]]$table[which(abs(topDE[[i]]$table$logFC)>=LFC),]}
+for (i in 1:nSets){topDE2[[i]] = topDE1[[i]][which(topDE1[[i]]$FDR<THRESHOLD),]}
+for (i in 1:nSets){topDE2[[i]]$edgeR_pi_value = abs(topDE2[[i]]$logFC)*(-1)*log10(topDE2[[i]]$FDR)}
+for (i in 1:nSets){topDE2[[i]] = topDE2[[i]][order(topDE2[[i]]$LR, decreasing=TRUE),]}
+for (i in 1:nSets){topDE2[[i]]$Gene = rownames(topDE2[[i]])}
+for (i in 1:nSets){edgeRDEnames[[i]] = rownames(topDE2[[i]])}
+for (i in 1:nSets){nDEGs1[[i]] = length(edgeRDEnames[[i]])}
+nDEGs1
 ```
 
 # glmLRT() conducts likelihood ratio tests for one or more coefficients in the linear model. 
@@ -410,35 +667,35 @@ con15 = contrasts[[15]] = makeContrasts(con[,19], levels=design) #makeContrasts(
 # If contrast is non-null, then the null hypothesis is that the specified contrasts of the coefficients are equal to zero.
 # For example, a contrast of c(0,1,-1), assuming there are three coefficients, would test the hypothesis that the second and third coefficients are equal.
 # LRT = Likelihood Ratio Test
-LRT = vector(mode = "list", length = nSets)
-for (i in 1:nSets){LRT[[i]]=glmLRT(fit , contrast = contrasts[[i]])}
+# LRT = vector(mode = "list", length = nSets)
+# for (i in 1:nSets){LRT[[i]]=glmLRT(fit , contrast = contrasts[[i]])}
 ```
 
 # topTags() extracts the top DE tags in a data frame for a given pair of groups
 ```{r}
 # adjusts the raw p-values using the False Discovery Rate (FDR) correction,
 # ranks by p-value or absolute log-fold change
-topDE = fdrsubtopDE = subtopDE = vector(mode = "list", length = nSets)
-for (i in 1:nSets){topDE[[i]]= topTags(LRT[[i]] , n=nrow(LRT[[i]]), sort.by = "p.value")}
-for (i in 1:nSets){subtopDE[[i]]= topDE[[i]]$table[which(abs(topDE[[i]]$table$logFC)>LFC),]}
-for (i in 1:nSets){fdrsubtopDE[[i]]= subtopDE[[i]][which(subtopDE[[i]]$FDR<THRESHOLD),]}
+# topDE = fdrsubtopDE = subtopDE = vector(mode = "list", length = nSets)
+# for (i in 1:nSets){topDE[[i]]= topTags(LRT[[i]] , n=nrow(LRT[[i]]), sort.by = "p.value")}
+# for (i in 1:nSets){subtopDE[[i]]= topDE[[i]]$table[which(abs(topDE[[i]]$table$logFC)>LFC),]}
+# for (i in 1:nSets){fdrsubtopDE[[i]]= subtopDE[[i]][which(subtopDE[[i]]$FDR<THRESHOLD),]}
 ```
 
 # Find equally expressed gene
 ```{r}
 
-EEgenes_edgeR=data.frame(S01xS02=topDE[[1]]$table$logFC, S01xS03=topDE[[2]]$table$logFC, S01xS04=topDE[[3]]$table$logFC, S01xS05=topDE[[4]]$table$logFC, S01xS06=topDE[[5]]$table$logFC, S02xS03=topDE[[6]]$table$logFC, S02xS04=topDE[[7]]$table$logFC, S02xS05=topDE[[8]]$table$logFC, S02xS06=topDE[[9]]$table$logFC, S03xS04=topDE[[10]]$table$logFC, S03xS05=topDE[[11]]$table$logFC, S03xS06=topDE[[12]]$table$logFC, S04xS05=topDE[[13]]$table$logFC, S04xS06=topDE[[14]]$table$logFC, S05xS06=topDE[[15]]$table$logFC)
-
-rownames(EEgenes_edgeR) = rownames(topDE[[1]])
-
-EEgenes_edgeR$LFC_sum <- rowSums(EEgenes_edgeR)
-
-EEgenes_edgeR = EEgenes_edgeR[head(sort(EEgenes_edgeR$LFC_sum,decreasing=FALSE), n = 100),]
-EEgenes_edgeR = EEgenes_edgeR[order(EEgenes_edgeR$LFC_sum),]
-
-EEgenes_edgeR = EEgenes_edgeR[EEgenes_edgeR$LFC_sum<0.01,]
-EEgenes_edgeR = EEgenes_edgeR[EEgenes_edgeR$LFC_sum>-0.01,]
-EEgenes_edgeR = EEgenes_edgeR[order(EEgenes_edgeR$LFC_sum),]
+# EEgenes_edgeR=data.frame(S01xS02=topDE[[1]]$table$logFC, S01xS03=topDE[[2]]$table$logFC, S01xS04=topDE[[3]]$table$logFC, S01xS05=topDE[[4]]$table$logFC, S01xS06=topDE[[5]]$table$logFC, S02xS03=topDE[[6]]$table$logFC, S02xS04=topDE[[7]]$table$logFC, S02xS05=topDE[[8]]$table$logFC, S02xS06=topDE[[9]]$table$logFC, S03xS04=topDE[[10]]$table$logFC, S03xS05=topDE[[11]]$table$logFC, S03xS06=topDE[[12]]$table$logFC, S04xS05=topDE[[13]]$table$logFC, S04xS06=topDE[[14]]$table$logFC, S05xS06=topDE[[15]]$table$logFC)
+# 
+# rownames(EEgenes_edgeR) = rownames(topDE[[1]])
+# 
+# EEgenes_edgeR$LFC_sum <- rowSums(EEgenes_edgeR)
+# 
+# EEgenes_edgeR = EEgenes_edgeR[head(sort(EEgenes_edgeR$LFC_sum,decreasing=FALSE), n = 100),]
+# EEgenes_edgeR = EEgenes_edgeR[order(EEgenes_edgeR$LFC_sum),]
+# 
+# EEgenes_edgeR = EEgenes_edgeR[EEgenes_edgeR$LFC_sum<0.01,]
+# EEgenes_edgeR = EEgenes_edgeR[EEgenes_edgeR$LFC_sum>-0.01,]
+# EEgenes_edgeR = EEgenes_edgeR[order(EEgenes_edgeR$LFC_sum),]
 
 #EEgenes_edgeR.1 = data.frame(LFC_sum = EEgenes_edgeR$LFC_sum, (d$counts*(10^6)/colSums(d$counts))[rownames(EEgenes_edgeR),])
 #EEgenes_edgeR.1
@@ -514,11 +771,11 @@ for (i in 1:nSets){DEGsummary[[i]] = summary(is.de[[i]])}
 
 # which genes are DE:
 ```{r}
-isDE = vector(mode = "list", length = nSets)
-for (i in 1:nSets){isDE[[i]] = as.logical(is.de[[i]])}
-
-edgeRDEnames = vector(mode = "list", length = nSets)
-for (i in 1:nSets){edgeRDEnames[[i]] = rownames(fdrsubtopDE[[i]])}
+# isDE = vector(mode = "list", length = nSets)
+# for (i in 1:nSets){isDE[[i]] = as.logical(is.de[[i]])}
+# 
+# edgeRDEnames = vector(mode = "list", length = nSets)
+# for (i in 1:nSets){edgeRDEnames[[i]] = rownames(fdrsubtopDE[[i]])}
 
 #DEnames = vector(mode = "list", length = nSets)
 #for (i in 1:nSets){DEnames[[i]] = rownames(LRT[[i]])[isDE[[i]]]}
@@ -548,15 +805,28 @@ library("clusterProfiler")
 #data(gcSample)
 #xx = compareCluster(gcSample, fun="enrichKEGG", organism="hsa", pvalueCutoff=0.1)
 
-edgeR_DEGs = list(S01xS02 = edgeRDEnames[[1]], S01xS03 = edgeRDEnames[[2]], S01xS04 = edgeRDEnames[[3]], S01xS05 = edgeRDEnames[[4]], S01xS06 = edgeRDEnames[[5]], S02xS03 = edgeRDEnames[[6]], S02xS04 = edgeRDEnames[[7]], S02xS05 = edgeRDEnames[[8]], S02xS06 = edgeRDEnames[[9]], S03xS04 = edgeRDEnames[[10]], S03xS05 = edgeRDEnames[[11]], S03xS06 = edgeRDEnames[[12]], S04xS05 = edgeRDEnames[[13]], S04xS06 = edgeRDEnames[[14]], S05xS06 = edgeRDEnames[[15]])
-
-mar=c(5.1,4.1,4.1,2.1)
+edgeR_DEGs = list(S01xS02 = edgeRDEnames[[1]],
+                  S01xS03 = edgeRDEnames[[2]],
+                  S01xS04 = edgeRDEnames[[3]],
+                  S01xS05 = edgeRDEnames[[4]],
+                  S01xS06 = edgeRDEnames[[5]],
+                  S02xS03 = edgeRDEnames[[6]],
+                  S02xS04 = edgeRDEnames[[7]],
+                  S02xS05 = edgeRDEnames[[8]],
+                  S02xS06 = edgeRDEnames[[9]], 
+                  S03xS04 = edgeRDEnames[[10]], 
+                  S03xS05 = edgeRDEnames[[11]], 
+                  S03xS06 = edgeRDEnames[[12]], 
+                  S04xS05 = edgeRDEnames[[13]], 
+                  S04xS06 = edgeRDEnames[[14]], 
+                  S05xS06 = edgeRDEnames[[15]])
 
 ee = compareCluster(edgeR_DEGs, fun="enrichKEGG", organism="hiu", pvalueCutoff=0.05)
 
 KEGG_Enrichment_Results_edgeR = data.frame(ee)
 
-plot(ee, type="dot")
+mar=c(5.1,4.1,4.1,2.1)
+plot(ee, type="dot", font.size = 8, includeAll=TRUE, showCategory=100)
 
 ```
 
@@ -601,7 +871,7 @@ DESeq2factors <- estimateSizeFactors(dds)
 ```{r}
 # by removing rows in which there are no reads or nearly no reads, we reduce the memory size of the dds data object
 # we increase the speed of the transformation and testing functions within DESeq2
-dds <- dds[ rowSums(counts(dds)) > 1, ]
+# dds <- dds[ rowSums(counts(dds)) > 1, ]
 ```
 
 ```{r}
@@ -695,17 +965,17 @@ for (i in 1:nSets){DEnamesDESEq2RLT[[i]] = rownames(resRLTOrdered.sig[[i]])}
 
 # Find equally expressed genes
 ```{r}
-EEgenes_DESeq2=data.frame(S01xS02=DESeqresults[[1]]$log2FoldChange, S01xS03=DESeqresults[[2]]$log2FoldChange, S01xS04=DESeqresults[[3]]$log2FoldChange, S01xS05=DESeqresults[[4]]$log2FoldChange, S01xS06=DESeqresults[[5]]$log2FoldChange, S02xS03=DESeqresults[[6]]$log2FoldChange, S02xS04=DESeqresults[[7]]$log2FoldChange, S02xS05=DESeqresults[[8]]$log2FoldChange, S02xS06=DESeqresults[[9]]$log2FoldChange, S03xS04=DESeqresults[[10]]$log2FoldChange, S03xS05=DESeqresults[[11]]$log2FoldChange, S03xS06=DESeqresults[[12]]$log2FoldChange, S04xS05=DESeqresults[[13]]$log2FoldChange, S04xS06=DESeqresults[[14]]$log2FoldChange, S05xS06=DESeqresults[[15]]$log2FoldChange)
-
-rownames(EEgenes_DESeq2) = rownames(DESeqresults[[1]])
-
-EEgenes_DESeq2$LFC_sum <- rowSums(EEgenes_DESeq2)
-EEgenes_DESeq2 = EEgenes_DESeq2[EEgenes_DESeq2$LFC_sum<1,]
-EEgenes_DESeq2 = EEgenes_DESeq2[EEgenes_DESeq2$LFC_sum>-1,]
-EEgenes_DESeq2 = EEgenes_DESeq2[order(EEgenes_DESeq2$LFC_sum),]
-
-EEgenes_DESeq2.1 = data.frame(LFC_sum = EEgenes_DESeq2$LFC_sum, (counts(dds)*(10^6)/colSums(counts(dds)))[rownames(EEgenes_DESeq2),])
-EEgenes_DESeq2.1 = round(EEgenes_DESeq2.1, 3)
+# EEgenes_DESeq2=data.frame(S01xS02=DESeqresults[[1]]$log2FoldChange, S01xS03=DESeqresults[[2]]$log2FoldChange, S01xS04=DESeqresults[[3]]$log2FoldChange, S01xS05=DESeqresults[[4]]$log2FoldChange, S01xS06=DESeqresults[[5]]$log2FoldChange, S02xS03=DESeqresults[[6]]$log2FoldChange, S02xS04=DESeqresults[[7]]$log2FoldChange, S02xS05=DESeqresults[[8]]$log2FoldChange, S02xS06=DESeqresults[[9]]$log2FoldChange, S03xS04=DESeqresults[[10]]$log2FoldChange, S03xS05=DESeqresults[[11]]$log2FoldChange, S03xS06=DESeqresults[[12]]$log2FoldChange, S04xS05=DESeqresults[[13]]$log2FoldChange, S04xS06=DESeqresults[[14]]$log2FoldChange, S05xS06=DESeqresults[[15]]$log2FoldChange)
+# 
+# rownames(EEgenes_DESeq2) = rownames(DESeqresults[[1]])
+# 
+# EEgenes_DESeq2$LFC_sum <- rowSums(EEgenes_DESeq2)
+# EEgenes_DESeq2 = EEgenes_DESeq2[EEgenes_DESeq2$LFC_sum<1,]
+# EEgenes_DESeq2 = EEgenes_DESeq2[EEgenes_DESeq2$LFC_sum>-1,]
+# EEgenes_DESeq2 = EEgenes_DESeq2[order(EEgenes_DESeq2$LFC_sum),]
+# 
+# EEgenes_DESeq2.1 = data.frame(LFC_sum = EEgenes_DESeq2$LFC_sum, (counts(dds)*(10^6)/colSums(counts(dds)))[rownames(EEgenes_DESeq2),])
+# EEgenes_DESeq2.1 = round(EEgenes_DESeq2.1, 3)
 
 #write.csv(EEgenes_DESeq2.1, "EquallyExpressed_DESeq2.csv")
 ```
@@ -1026,18 +1296,30 @@ barplot_ggplot = ggplot(fdrsubtopDE[[i]], aes(x=reorder(Gene, logFC), y=logFC, f
 # for (i in 1:15){edgeR_barplot_DE[[i]] = barplot(sort(fdrsubtopDE[[i]]$logFC, decreasing=TRUE), names.arg=rownames(fdrsubtopDE[[i]]), las=2)}
 ```
 
-# Barplot
+
+
+# Parse KEGG xml
 ```{r, message=FALSE}
-library(ggplot2)
-edgeR_barplot = edgeR_barplot_DE = vector(mode = "list", length = nSets)
-for (i in 1:15){edgeR_barplot[[i]] = barplot(sort(topDE[[1]]$table$logFC, decreasing=TRUE))}
+library(KEGG.db)
+pName = "Purine metabolism"
+pId = mget(pName, KEGGPATHNAME2ID)[[1]]
+tmp <- tempfile()
 
-for (i in 1:15){edgeR_barplot_DE[[i]] = barplot(sort(fdrsubtopDE[[i]]$logFC, decreasing=TRUE), names.arg=rownames(fdrsubtopDE[[i]]), las=2)}
+require(KEGGgraph)
+retrieveKGML(pId, organism="hiu", destfile=tmp, method="wget", quiet=TRUE)
+
+Hib_purine_Graph = parseKGML2Graph(retrieveKGML(pId, organism="hiu", destfile=tmp, method="wget", quiet=TRUE),expandGenes=TRUE)
+nodes(Hib_purine_Graph)
+
+getKEGGnodeData(Hib_purine_Graph)
+
+Hib_purine_pathway = parseKGML(retrieveKGML(pId, organism="hiu", destfile=tmp, method="wget", quiet=TRUE))
+
+parseKGMLexpandMaps(retrieveKGML(pId, organism="hiu", destfile=tmp, method="wget", quiet=TRUE))
+
+getKEGGnodeData(Hib_purine_Graph,'hiu:00230')
+
 ```
-
-
-
-
 
 # kegga
 ```{r, message=FALSE}
