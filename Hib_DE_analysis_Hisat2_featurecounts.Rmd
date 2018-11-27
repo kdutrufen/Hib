@@ -27,48 +27,14 @@ detachAllPackages <- function() {
     if (length(package.list)>0)  for (package in package.list) detach(package, character.only=TRUE)
     
 }
-
-detachAllPackages()
 ```
 
-# Read in Hib Matrix form Rsubread alignment
-```{r }
-library(readr)
-# Count matrix v1 (Hisat k -5, featureCounts -M)
-# Hib_CountData = read.table("~/Dropbox/Hib_Data/Hib_Hisat2_featureCounts_table_countMultiMappingReads.txt", header=TRUE, sep = "\t", row.names = 1)
-# Hib_CountData <- as.data.frame(read_delim("~/Dropbox/Hib_Data/Hib_Hisat2_featureCounts_table_countMultiMappingReads.txt", "\t", escape_double = FALSE, trim_ws = TRUE, skip = 1))
-
-# Count matrix v2 (Hisat k -2, featureCounts )
-# Hib_CountData = read.table("~/Dropbox/Hib_Data/Hib_Hisat2_k-2_featureCounts_table_2018_09_14.txt", header=TRUE, sep = "\t", row.names = 1)
-
-# Count matrix v3 (Hisat k -5, featureCounts -M --primary)
-Hib_CountData = read.table("~/Dropbox/Hib_Data/Hib_Hisat2_featureCounts_primary_table.txt", header=TRUE, sep = "\t", row.names = 1)
-
-Hib_CountData$Chr = Hib_CountData$Start = Hib_CountData$End = Hib_CountData$Strand = Hib_CountData$Length = NULL
-
-colnames(Hib_CountData) = c("S01B01", "S01B02", "S01B03", "S01B04", "S02B01", "S02B02", "S02B03", "S02B04", "S03B01", "S03B02", "S03B03", "S03B04", "S04B01", "S04B02", "S04B03", "S04B04", "S05B01", "S05B02", "S05B03", "S05B04", "S06B01", "S06B02", "S06B03", "S06B04")
-
-library(stringr)
-# Remove rrf gene (ribosomal RNA)
-Hib_CountData = Hib_CountData[-which(str_detect(rownames(Hib_CountData), "rrf")==TRUE),]
-# Hib_CountData = Hib_CountData[-which(str_detect(Hib_CountData$Geneid, "rrf")==TRUE),]
-
-# rownames(Hib_CountData) = Hib_CountData$Geneid
-# Hib_CountData = Hib_CountData[,-c(1:6)]
-countData = Hib_CountData
-
-THRESHOLD <- 0.05
-LFC = 1
+```{r}
+# detachAllPackages()
 ```
 
-# Sets design
-```{r }
-library('ballgown')
-RefSeq_gff <- gffRead("~/Dropbox/Hib_Data/GCF_000210875.1_ASM21087v1_genomic.gff")
-RefSeq_gff$Name <- getAttributeField(RefSeq_gff$attributes, "Name", attrsep = "; ")
-RefSeq_gff$ID <- getAttributeField(RefSeq_gff$attributes, "ID", attrsep = "; ")
-colnames(RefSeq_gff)
-
+# get_Attribute_Field
+```{r}
 get_Attribute_Field = function (x, field, attrsep = "; ") 
 {
     s = strsplit(x, split = attrsep, fixed = TRUE)
@@ -84,14 +50,53 @@ get_Attribute_Field = function (x, field, attrsep = "; ")
         return(rv)
     })
 }
+```
 
-RefSeq_gff.genes <- RefSeq_gff[RefSeq_gff[,3]=="gene",]
-RefSeq_gff.genes$Name <- get_Attribute_Field(RefSeq_gff.genes$attributes, "Name", attrsep = ";")
-RefSeq_gff.genes$ID <- get_Attribute_Field(RefSeq_gff.genes$attributes, "ID", attrsep = ";")
-RefSeq_gff.genes$OldLocusTag <- get_Attribute_Field(RefSeq_gff.genes$attributes, "old_locus_tag", attrsep = ";")
-#RefSeq_gff.genes$OldLocusTag = make.unique(RefSeq_gff.genes$OldLocusTag)
-colnames(RefSeq_gff.genes)
+# Protein list
+```{r, message=FALSE}
+library(tidyverse)
+library(edgeR)
+Hib_proteins <- read_delim("~/Dropbox/Hib_Data/Haemophilus_influenzae_10810.GCF_000210875.1.proteintable.txt", delim = "\t", escape_double = FALSE, trim_ws = TRUE) %>% as.data.frame
+```
 
+# Gene list
+```{r, message=FALSE}
+library(ballgown)
+library(tidyverse)
+RefSeq_gff.genes <- gffRead("~/Dropbox/Hib_Data/GCF_000210875.1_ASM21087v1_genomic.gff") %>% filter(feature == "gene") %>% mutate(locustag = get_Attribute_Field(attributes, "Name", attrsep = ";")) %>% mutate(ID = get_Attribute_Field(attributes, "ID", attrsep = ";")) %>% mutate(OldLocusTag = get_Attribute_Field(attributes, "old_locus_tag", attrsep = ";")) %>% mutate(Gene_length = end-start) %>% full_join(Hib_proteins) %>% select(Name = locustag, OldLocusTag, product)
+```
+
+
+# Read in Hib Matrix form Rsubread alignment
+```{r }
+#Hib_CountData = read.csv("~/Dropbox/Hib_Data/Hib_Hisat2_featureCounts_table_countMultiMappingReads.txt", header=TRUE, sep = "\t", row.names = 1)
+library(tidyverse)
+# Count matrix v1 (Hisat k -5, featureCounts -M)
+# Hib_CountData <- read_delim("~/Dropbox/Hib_Data/Hib_Hisat2_featureCounts_table_countMultiMappingReads.txt", "\t", escape_double = FALSE, trim_ws = TRUE, skip = 1) %>% as.data.frame
+
+# Count matrix v2 (Hisat k -2, featureCounts )
+# Hib_CountData <- read_delim("~/Dropbox/Hib_Data/2_featureCounts_table_2018_09_14.txt", "\t", escape_double = FALSE, trim_ws = TRUE, skip = 1) %>% as.data.frame
+
+# Count matrix v3 (Hisat k -5, featureCounts -M --primary)
+Hib_CountData <- read_delim("~/Dropbox/Hib_Data/Hib_Hisat2_featureCounts_primary_table.txt", "\t", escape_double = FALSE, trim_ws = TRUE, skip = 1) %>% as.data.frame
+
+library(stringr)
+# Remove rrf gene (ribosomal RNA)
+# set Geneid as row names
+# remove unwanted columns
+# change column names
+# countData = Hib_CountData %>% filter(!str_detect(Geneid, pattern = "rrf")) %>% column_to_rownames('Geneid') %>% select(-c(Chr, Start, End, Strand, Length)) %>% setNames(c("S01B01", "S01B02", "S01B03", "S01B04", "S02B01", "S02B02", "S02B03", "S02B04", "S03B01", "S03B02", "S03B03", "S03B04", "S04B01", "S04B02", "S04B03", "S04B04", "S05B01", "S05B02", "S05B03", "S05B04", "S06B01", "S06B02", "S06B03", "S06B04"))
+
+Hib_CountData = Hib_CountData %>% filter(!str_detect(Geneid, pattern = "rrf")) %>% column_to_rownames('Geneid') %>% select(-c(Chr, Start, End, Strand, Length)) %>% setNames( sort( as.vector( outer( paste0("S0", 1:6), paste0("B0", 1:4), paste0 ) ) ) )
+
+Hib_CountData$S03B02 = NULL
+
+THRESHOLD <- 0.01
+LFC = 1
+```
+
+# Rename row names to old locus tag
+```{r }
 # Rename Hib genes to old locus tag (available at KEGG)
 for (i in 1:nrow(RefSeq_gff.genes)){
   if (is.na(RefSeq_gff.genes$OldLocusTag[i])=="FALSE"){
@@ -99,15 +104,50 @@ for (i in 1:nrow(RefSeq_gff.genes)){
   }
 }
 
-Hib_CountData = Hib_CountData[ order(row.names(Hib_CountData)), ]
-
-library(stringr)
-# Remove ribosomal RNA
-Hib_CountData = Hib_CountData[-which(str_detect(rownames(Hib_CountData), "HIB_r")==TRUE),]
-countData = Hib_CountData
+# Sort row names alphabetically
+# removeribosomal RNA
+Hib_CountData = Hib_CountData %>% rownames_to_column %>% arrange(rowname) %>% filter(!str_detect(rowname, pattern = "HIB_r")) %>% column_to_rownames('rowname')
 ```
 
+# Sets design
 ```{r }
+# countData = Hib_CountData
+HibDesign = data.frame(row.names = colnames( Hib_CountData ), condition = str_sub( colnames(Hib_CountData), start = 1L, end = 3L ) )
+
+group=as.factor(HibDesign$condition)
+design <- model.matrix(~0 + group)
+colnames(design) <- levels(group)
+rownames(design) = colnames(Hib_CountData)
+```
+
+```{r function plot_genes_boxplot}
+library(tidyverse)
+
+plot_genes_boxplot = function(df, genes, design, levels, converter, convert_from, convert_to){
+  df = df %>% cpm %>% as.data.frame %>% rownames_to_column %>% filter(rowname %in% c(genes)) %>% distinct(rowname, .keep_all = TRUE) %>% arrange(rowname) %>% column_to_rownames
+  if (nrow(df)%%4==0){
+    df_list = map(1:floor(length(genes)/4), function(i) df[(4*i-3):(4*i),] )
+  } else {
+    df_list = map(1:floor(length(genes)/4), function(i) df[(4*i-3):(4*i),] )
+    df_list[[(length(df_list)+1)]] = df[((length(df_list)*4)+1):length(genes),]
+  }
+  df_list = df_list %>% map(t) %>% map(function(x) as.data.frame(cbind(x, "Condition" = as.character(design, levels = levels)) ) )
+  df_list = df_list %>% map(function(x) { x %>% gather(Gene, CPM, -Condition) } ) %>% map(function(x) { merge(x, converter, by.x = "Gene", by.y = convert_from) } )
+  appender <- function(string, suffix = converter[[convert_to]][match(string, converter[[convert_from]])]) paste0(string, "\n (", suffix,")")
+  map(df_list, function(x) ggplot(x, aes(x = Condition, y = as.numeric(CPM), color = Condition)) + geom_boxplot(alpha = .5) + geom_jitter(alpha = .5,width = .1) + theme_bw() + theme(axis.text.x = element_text(angle=90, hjust=1)) + ylab(label = "Read counts (cpm)") + facet_wrap(~Gene, scales = "free", ncol = 2, labeller = as_labeller(appender)) )
+}
+```
+
+```{r}
+genes = c("HIB_11840", "HIB_11830", "HIB_11820", "HIB_11810", "HIB_11690", "HIB_11680", "HIB_11670", "HIB_11660", "HIB_11730", "HIB_11720", "HIB_11710", "HIB_11870", "HIB_11860", "HIB_11850", "HIB_11650", "HIB_11800", "HIB_11640", "HIB_11790")
+
+genes = c("HIB_11840", "HIB_11830", "HIB_11690", "HIB_11680")
+
+plot_genes_boxplot(df = Hib_CountData, genes = genes, design = HibDesign$condition, levels = c("S01", "S02", "S03", "S04", "S05", "S06"), converter = RefSeq_gff.genes, convert_from = "OldLocusTag", convert_to = "product")
+```
+
+# Hib_unaligned_CountData
+```{r Hib_unaligned_CountData}
 Hib_unaligned_CountData <- as.data.frame(read_delim("~/Dropbox/Hib_Data/unaligned_spades_salmon_counts_matrix.tsv", "\t", escape_double = FALSE, trim_ws = TRUE, skip = 0))
 
 rownames(Hib_unaligned_CountData) = Hib_unaligned_CountData$transcript
@@ -123,84 +163,73 @@ rownames(Hib_unaligned_CountData)[rownames(Hib_unaligned_CountData)=="NODE_15_le
 countData = rbind(Hib_CountData, Hib_unaligned_CountData)
 ```
 
-# Sets design
-```{r }
-HibDesign1 = data.frame(row.names = colnames( countData ), condition = rep(c("S01", "S02", "S03", "S04", "S05", "S06"), each = 4))
-```
-
-```{r }
-col.cell <- c("purple","orange", "blue", "red", "green", "black")[as.factor(HibDesign1$condition)]
-par(mar=c(6,6,3,3))
-barplot(c(mean(colSums(countData)), colSums(countData)), names.arg=c("Average", colnames(countData)), col=c("yellow", col.cell), las=2, main="", xlab="", ylab="", ylim=c(0,max(colSums(countData))))
-title(ylab="Library sizes", line=4, cex.lab=1.5)
-title(xlab="Amostras", line=4, cex.lab=1.5)
-abline(h=2e+6, col="black")
-```
-
 
 ```{r }
 library(ggplot2)
 library(data.table)
-col.cell <- c("purple","orange", "blue", "red", "green", "grey", "cyan", "darkgoldenrod", "darkorchid", "darkslategray")[as.factor(HibDesign1$condition)]
+
+countData = Hib_CountData
+
+col.cell <- c("purple","orange", "blue", "red", "green", "grey", "cyan", "darkgoldenrod", "darkorchid", "darkslategray")[as.factor(HibDesign$condition)]
 par(mar=c(6,6,3,3))
 
 sumdata=data.frame(Counts = c(mean(colSums(countData)), (apply(countData,2,sum))))
 sumdata$Samples=c("Average", colnames(countData))
 
-ggplot(data=sumdata, aes(x=Samples, y=Counts, fill=Samples)) + geom_bar(colour="black", stat="identity", fill = c("yellow", col.cell) ) + theme_bw() + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + geom_hline(mapping = NULL, data = NULL, yintercept = 2e+6, na.rm = FALSE, show.legend = NA, colour="black")
+sumdata %>% ggplot(aes(x=Samples, y=Counts, fill=Samples)) + geom_bar(colour="black", stat="identity", fill = c("yellow", col.cell) ) + theme_bw() + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + geom_hline(mapping = NULL, data = NULL, yintercept = 2e+6, na.rm = FALSE, show.legend = NA, colour="black")
 ```
 
 # Noise filtering x lost genes
 ```{r, message=FALSE}
+
 library("edgeR")
-group=as.factor(HibDesign1$condition)
+group=as.factor(HibDesign$condition)
 design <- model.matrix(~0 + group)
 colnames(design) <- levels(group)
 rownames(design) = colnames(countData)
 
 d <- DGEList(counts=countData, lib.size = colSums(countData), group=group)
 
-keep = list()
-for (i in 1:20){
-  keep[[i]] <- rowSums(cpm(d)> i) >= 4
-}
-sum_keep = lapply(keep, sum)
-sum_keep_r = lapply(1:length(sum_keep), function(x){ nrow(countData) - sum_keep[[x]] } )
+keep = map(1:20, function(i) rowSums(cpm(d)> i) >= 4)
+sum_keep = keep %>% map(sum)
+sum_keep_r = map(seq_along(sum_keep), function(x){ nrow(countData) - sum_keep[[x]] } )
 
-par(mfrow=c(1,2), mar=c(8.1,4.1,4.1,2.1))
-plot(unlist(sum_keep), xlab = "Filter", ylab = "NUmber of genes left")
-plot(unlist(sum_keep_r), xlab = "Filter", ylab = "NUmber of genes removed")
+sum_keep %>% unlist %>% melt %>% ggplot(aes(x = 1:20, y = value )) + geom_point() + xlab("Filter") + ylab("Number of genes left")
+sum_keep_r %>% unlist %>% melt %>% ggplot(aes(x = 1:20, y = value )) + geom_point() + xlab("Filter") + ylab("Number of genes left")
 ```
 
+# Filter
+```{r, message = FALSE}
+library(edgeR)
+# Filter
+d <- DGEList(counts=countData, lib.size = colSums(countData), group=group)
+keep<- rowSums(cpm(d)> 1) >= 1
+# CPMthershold = round(cpm(1, mean(d$samples$lib.size)), digits=2)
+# keep <- rowSums(cpm(d)> as.vector(CPMthershold)) >= 4
+filtered <- d[keep,]
+summary(keep)
+dim(filtered)
 
+countData = filtered$counts
+```
 
 # Least significantly DE genes based on a first-pass DE analysis performed prior to RUVg normalization.
-```{r, message=FALSE}
+```{r }
+# Calls for libraries
 library("RUVSeq")
 library("EDASeq")
 library("edgeR")
-group=as.factor(HibDesign1$condition)
+
+Design = HibDesign
+
+group=factor(Design$condition)
 design <- model.matrix(~0 + group)
 colnames(design) <- levels(group)
 rownames(design) = colnames(countData)
-
-d <- DGEList(counts=countData, lib.size = colSums(countData), group=group)
-
-myCPM = cpm(d)
-cpm(1, mean(d$samples$lib.size))
-CPMthershold = round(cpm(1, mean(d$samples$lib.size)), digits=2)
-keep <- rowSums(cpm(d)> as.vector(CPMthershold)) >= 4
-filtered <- d[keep,]
-summary(keep)
-dim(filtered )
-
-# d <- DGEList(counts=filtered$counts, lib.size = colSums(filtered$counts), group=group)
-d <- calcNormFactors(d , method="TMM")
-d <- estimateDisp(d , design , tagwise=TRUE, robust=TRUE)
-fit <- glmFit(d , design)
+fit <- DGEList(counts=countData, lib.size = colSums(countData), group=group) %>% calcNormFactors(method="TMM") %>% estimateDisp(design , tagwise=TRUE, robust=TRUE) %>% glmFit(design)
 lrt <- glmLRT(fit ,coef=2:6)
-top <-   topTags(lrt, n=nrow(d))$table
-empirical <-   rownames(filtered)[which(!(rownames(filtered) %in% rownames(top)[1:1000]))]
+top <-   topTags(lrt, n=nrow(fit))$table
+empirical <-   rownames(countData)[which(!(rownames(countData) %in% rownames(top)[1:1000]))]
 ```
 
 # Here, we consider all but the top 500 genes as ranked by edgeR p-values
@@ -208,11 +237,13 @@ empirical <-   rownames(filtered)[which(!(rownames(filtered) %in% rownames(top)[
 # The RUVg function  returns  two  pieces  of  information:
 # the estimated factors of unwanted variation nd the normalized counts obtained by regressing the original counts on the unwanted factors
 # The normalized values are stored in the normalizedCounts slot
-set2 <- RUVg(as.matrix(d), empirical, k=1)
+set2 <- RUVg(as.matrix(fit$counts), empirical, k=1)
+
+# write.table(set2$normalizedCounts, "~/Documents/CENTD/COA_data/COA_FULL_counts_Matrix_Batch_Effect_Removed.tsv", sep = "\t", col.names = TRUE, row.names = TRUE, quote = FALSE)
 ```
 
 ```{r}
-col.cell <- c("purple","orange", "blue", "red", "green", "black", "cyan", "darkgoldenrod", "darkorchid", "darkslategray")[as.factor(HibDesign1$condition)]
+col.cell <- c("purple","orange", "blue", "red", "green", "black", "cyan", "darkgoldenrod", "darkorchid", "darkslategray")[as.factor(Design$condition)]
 # plotRLE creates relative log expression (RLE) plot, initially proposed to measure the overall quality of a dataset 
 # plotRLE can also be used to visualize the presence of unwanted batch effects in the data
 par(mfrow=c(1,2), mar=c(8.1,4.1,4.1,2.1))
@@ -229,19 +260,130 @@ mtext(side = 1, text = "Samples", line = 7)
 mtext(side = 2, text = "Relative Log Expression (RLE)", line = 1.5) 
 ```
 
-# Set design, removing batch effect
-# Create the design matrix
+# New Count Data, batch corrected
 ```{r}
-# HibDesign2 = data.frame(row.names = colnames( countData ), condition = HibDesign1$condition,  set2$W)
-# design = model.matrix(~0+group+set2$W, data = HibDesign2)
-# colnames(design) <- c(levels(group), "W")
-# group=as.factor(HibDesign1$condition)
-
-HibDesign2 = data.frame(row.names = colnames( set2$normalizedCounts ), condition = HibDesign1$condition)
-design = model.matrix(~0+group, data = HibDesign2)
-colnames(design) <- c(levels(group))
-group=as.factor(HibDesign2$condition)
+countData = set2$normalizedCounts
 ```
+
+# DE analysis
+```{r, message=FALSE}
+THRESHOLD <- 0.05
+LFC = 1
+nSets <- 15
+
+contr.matrix <- makeContrasts(con1 = S02 - S01,
+                              con2 = S03 - S01,
+                              con3 = S04 - S01,
+                              con4 = S05 - S01,
+                              con5 = S06 - S01,
+                              con6 = S03 - S02,
+                              con7 = S04 - S02,
+                              con8 = S05 - S02,
+                              con9 = S06 - S02,
+                              con10 = S04 - S03,
+                              con11 = S05 - S03,
+                              con12 = S06 - S03,
+                              con13 = S05 - S04,
+                              con14 = S06 - S04,
+                              con15 = S06 - S05,
+                              levels = c("S01", "S02", "S03", "S04", "S05", "S06"))
+
+
+# edgeR pipeline
+library(edgeR)
+fit <- DGEList(counts = countData, lib.size = colSums(countData), group=group) %>% calcNormFactors("TMM") %>% estimateDisp(design, robust=TRUE) %>% glmFit(design)
+rownames(fit$counts) = rownames(countData)
+lrt1 = map(1:nSets, function(i) glmLRT( fit, contrast=contr.matrix[,i] ) )
+edgeR_results = map(seq_along(lrt1), function(i) topTags(lrt1[[i]] , n=nrow(lrt1[[i]]), sort.by = "p.value"))
+edgeR_results = map(1:nSets, function(i) edgeR_results[[i]]$table) %>% map(rownames_to_column) %>% map(mutate, pi_value = abs(logFC)*(-1)*log10(FDR)) %>% map(dplyr::arrange, FDR) 
+edgeR_results = edgeR_results %>% map(mutate, Product = as.character(RefSeq_gff.genes$product[match(rowname, as.character(RefSeq_gff.genes$OldLocusTag))]))
+edgeR_topDE1 = edgeR_results %>%map(dplyr::filter, FDR<THRESHOLD)
+edgeR_topDE2 = edgeR_topDE1 %>% map(filter, abs(logFC) >= LFC )
+edgeR_DE_names = edgeR_topDE2 %>% map(dplyr::select, rowname) %>% map(pull)
+names(edgeR_DE_names) = c("S01xS02", "S01xS03", "S01xS04", "S01xS05", "S01xS06", "S02xS03", "S02xS04", "S02xS05", "S02xS06", "S03xS04", "S03xS05", "S03xS06", "S04xS05", "S04xS06", "S05xS06")
+edgeR_n_DEGs = map(edgeR_DE_names, length)
+
+# DESeq2 pipeline
+library(DESeq2)
+design = model.matrix(~0+group, data = Design)
+colnames(design) <- c(levels(group))
+coldata <- data.frame(row.names=colnames(countData), Design)
+dds = DESeqDataSetFromMatrix(countData = countData, colData = coldata , design= ~ condition) %>% estimateSizeFactors %>% DESeq
+DESeqresults = vector(mode = "list", length = nSets)
+DESeqresults[[1]] = results(dds, contrast=c("condition", "S02", "S01"))
+DESeqresults[[2]] = results(dds, contrast=c("condition", "S03", "S01"))
+DESeqresults[[3]] = results(dds, contrast=c("condition", "S04", "S01"))
+DESeqresults[[4]] = results(dds, contrast=c("condition", "S05", "S01"))
+DESeqresults[[5]] = results(dds, contrast=c("condition", "S06", "S01"))
+DESeqresults[[6]] = results(dds, contrast=c("condition", "S03", "S02"))
+DESeqresults[[7]] = results(dds, contrast=c("condition", "S04", "S02"))
+DESeqresults[[8]] = results(dds, contrast=c("condition", "S05", "S02"))
+DESeqresults[[9]] = results(dds, contrast=c("condition", "S06", "S02"))
+DESeqresults[[10]] = results(dds, contrast=c("condition", "S04", "S03"))
+DESeqresults[[11]] = results(dds, contrast=c("condition", "S05", "S03"))
+DESeqresults[[12]] = results(dds, contrast=c("condition", "S06", "S03"))
+DESeqresults[[13]] = results(dds, contrast=c("condition", "S05", "S04"))
+DESeqresults[[14]] = results(dds, contrast=c("condition", "S06", "S04"))
+DESeqresults[[15]] = results(dds, contrast=c("condition", "S06", "S05"))
+DESeq2_results = DESeqresults %>% map(as.data.frame) %>% map(rownames_to_column) %>% map(arrange, desc(padj) ) %>% map(mutate, pi_value = abs(log2FoldChange)*(-1)*log10(padj))
+DESeq2_results = DESeq2_results %>% map(mutate, Product = as.character(RefSeq_gff.genes$product[match(rowname, as.character(RefSeq_gff.genes$OldLocusTag))]))
+DESeq2_topDE1 = DESeq2_results %>% map(filter, padj < THRESHOLD)
+DESeq2_topDE2 = DESeq2_topDE1 %>% map(filter, abs(log2FoldChange) >= LFC )
+DESeq2_DE_names = DESeq2_topDE2 %>% map(dplyr::select, rowname) %>% map(pull)
+names(DESeq2_DE_names) = c("S01xS02", "S01xS03", "S01xS04", "S01xS05", "S01xS06", "S02xS03", "S02xS04", "S02xS05", "S02xS06", "S03xS04", "S03xS05", "S03xS06", "S04xS05", "S04xS06", "S05xS06")
+DESeq2_n_DEGs = map(DESeq2_DE_names, length)
+
+# limma-Voom pipeline
+library(limma)
+voom_fit = DGEList(counts = countData, lib.size = colSums(countData), group=group) %>% calcNormFactors("TMM") %>% voom(design, plot=FALSE) %>% lmFit(design)
+efit = map(1:nSets, function(i) contrasts.fit(voom_fit, contrasts=contr.matrix[,i] ) ) %>%  map(eBayes, robust=TRUE)
+limma_voom_results = map(1:nSets, function(i) toptable(efit[[i]], adjust="fdr", lfc=0, p.value=1.01, number=Inf) ) %>% map(as.data.frame) %>% map(rownames_to_column) %>% map(mutate, pi_value = abs(logFC)*(-1)*log10(adj.P.Val)) %>% map(arrange, desc(adj.P.Val) )
+limma_voom_topDE1 = limma_voom_results %>% map(filter, adj.P.Val < THRESHOLD)
+limma_voom_topDE2 = limma_voom_topDE1 %>% map(filter, abs(logFC) >= LFC )
+limma_voom_DE_names = limma_voom_topDE2 %>% map(dplyr::select, rowname) %>% map(pull)
+names(limma_voom_DE_names) = c("S01xS02", "S01xS03", "S01xS04", "S01xS05", "S01xS06", "S02xS03", "S02xS04", "S02xS05", "S02xS06", "S03xS04", "S03xS05", "S03xS06", "S04xS05", "S04xS06", "S05xS06")
+limma_voom_n_DEGs = map(limma_voom_DE_names, length)
+```
+
+# KEGG enrichment
+```{r, fig.width=10, fig.height=7}
+library("clusterProfiler")
+#comparecluster
+#data(gcSample)
+order_genes = function(df = df, geneID = geneID){ df[[geneID]] %>% strsplit(split = "/") %>% map(sort) %>% map(paste, collapse = "/") %>% unlist }
+
+edgeR_DEGs = edgeR_DE_names
+
+Hib_KEGG_enrichment = edgeR_DEGs %>% compareCluster(fun="enrichKEGG", organism="hiu", pvalueCutoff=0.05)
+
+Hib_KEGG_enrichment@compareClusterResult = Hib_KEGG_enrichment@compareClusterResult %>% filter(p.adjust<0.05) %>% filter(Count>2)
+
+Hib_KEGG_enrichment_df = Hib_KEGG_enrichment %>% as.data.frame
+
+Hib_KEGG_enrichment_df$geneID = Hib_KEGG_enrichment_df %>% order_genes("geneID")
+
+mar=c(5.1,4.1,4.1,2.1)
+plot(Hib_KEGG_enrichment, type="dot", font.size = 12, includeAll=TRUE, showCategory=100)
+```
+
+```{r pathview}
+library(pathview)
+data_2_pv = edgeR_topDE2[[6]]$logFC
+names(data_2_pv) = edgeR_topDE2[[6]]$rowname
+
+# KEGG Argininie biosynthesis
+pv.out <- pathview(gene.data = data_2_pv, pathway.id = "00220", species = "hiu", out.suffix = "hiu00220_Hib_S03xS02", kegg.native = T)
+
+# Purine metabolism
+pv.out <- pathview(gene.data = data_2_pv, pathway.id = "00230", species = "hiu", out.suffix = "hiu00230_Hib_S03xS02", kegg.native = T)
+```
+
+
+
+
+
+
+
 
 # New Count Data, batch corrected
 ```{r}
