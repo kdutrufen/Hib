@@ -114,7 +114,7 @@ plot_genes_boxplot = function(df, genes, design, levels, converter, convert_from
   df_list = df_list %>% lapply(function(x) { x %>% gather(Gene, CPM, -Condition) } ) %>% lapply(function(x) { merge(x, converter, by.x = "Gene", by.y = convert_from) } )
   appender <- function(string, suffix = converter[[convert_to]][match(string, converter[[convert_from]])]) paste0(string, "\n (", suffix,")")
   
-    lapply(df_list, function(x) ggplot(x, aes(x = Condition, y = as.numeric(CPM), color = Condition)) + geom_boxplot(alpha = .5) + geom_jitter(alpha = .5,width = .1) + theme_bw() + theme(axis.text.x = element_text(angle=90, hjust=1)) + ylab(label = "Read counts (cpm)") + theme(strip.text = element_text(size=10)) + facet_wrap(~Gene, scales = "free", ncol = 2, labeller = as_labeller(appender) ) )
+    lapply(df_list, function(x) ggplot(x, aes(x = Condition, y = as.numeric(CPM), color = Condition)) + geom_boxplot(alpha = .5) + geom_jitter(alpha = .5, width = .1) + theme_bw() + theme(axis.text.x = element_text(angle=90, hjust=1)) + ylab(label = "Read counts (cpm)") + theme(strip.text = element_text(size=10)) + facet_wrap(~Gene, scales = "free", ncol = 2, labeller = as_labeller(appender) ) )
     
   # lapply(df_list, function(x) ggplot(x, aes(x = Condition, y = as.numeric(CPM), color = Condition)) + geom_boxplot(alpha = .5) + geom_jitter(alpha = .5,width = .1) + theme_bw() + theme(axis.text.x = element_text(angle=90, hjust=1)) + ylab(label = "Read counts (cpm)") + facet_wrap(~Gene, scales = "free", ncol = 2, labeller = as_labeller( wrapit( appender) ) ) )
   
