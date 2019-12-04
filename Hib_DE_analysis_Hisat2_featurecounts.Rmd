@@ -123,7 +123,7 @@ Hib_CountData$S03B02 <- NULL
 ```{r }
 # Rename Hib genes to old locus tag (available at KEGG)
 # Sort row names alphabetically
-# removeribosomal RNA
+# remove ribosomal RNA
 Hib_CountData <- Hib_CountData %>%
   rownames_to_column() %>%
   left_join(RefSeq_gff.genes, by = c("rowname" = "Name")) %>%
@@ -232,7 +232,6 @@ filtered_countData <- filtered$counts
 
 # Least significantly DE genes based on a first-pass DE analysis performed prior to RUVg normalization.
 ```{r }
-# Calls for libraries
 fit <- filtered_countData %>% DGEList(lib.size = colSums(filtered_countData), group = group) %>% calcNormFactors(method = "TMM") %>% estimateDisp(design = design, tagwise = TRUE, robust = TRUE) %>% glmFit(design)
 lrt <- fit %>% glmLRT(coef = 2:6)
 top <- topTags(lrt, n = nrow(d))$table
@@ -270,6 +269,7 @@ mtext(side = 2, text = "Relative Log Expression (RLE)", line = 1.5, cex = 2)
 THRESHOLD <- 0.05
 LFC <- 1
 nSets <- 15
+
 comparisons <- c("S01xS02", "S01xS03", "S01xS04", "S01xS05", "S01xS06", "S02xS03", "S02xS04", "S02xS05", "S02xS06", "S03xS04", "S03xS05", "S03xS06", "S04xS05", "S04xS06", "S05xS06")
 
 contr.matrix <- makeContrasts(
@@ -312,22 +312,22 @@ design <- model.matrix(~ 0 + group, data = HibDesign)
 colnames(design) <- c(levels(group))
 coldata <- data.frame(row.names = colnames(set2$normalizedCounts), HibDesign)
 dds <- DESeqDataSetFromMatrix(countData = set2$normalizedCounts, colData = coldata, design = ~condition) %>% estimateSizeFactors() %>% DESeq()
-DESeqresults <- vector(mode = "list", length = nSets)
-DESeqresults[[1]] <- results(dds, contrast = c("condition", "S02", "S01"))
-DESeqresults[[2]] <- results(dds, contrast = c("condition", "S03", "S01"))
-DESeqresults[[3]] <- results(dds, contrast = c("condition", "S04", "S01"))
-DESeqresults[[4]] <- results(dds, contrast = c("condition", "S05", "S01"))
-DESeqresults[[5]] <- results(dds, contrast = c("condition", "S06", "S01"))
-DESeqresults[[6]] <- results(dds, contrast = c("condition", "S03", "S02"))
-DESeqresults[[7]] <- results(dds, contrast = c("condition", "S04", "S02"))
-DESeqresults[[8]] <- results(dds, contrast = c("condition", "S05", "S02"))
-DESeqresults[[9]] <- results(dds, contrast = c("condition", "S06", "S02"))
-DESeqresults[[10]] <- results(dds, contrast = c("condition", "S04", "S03"))
-DESeqresults[[11]] <- results(dds, contrast = c("condition", "S05", "S03"))
-DESeqresults[[12]] <- results(dds, contrast = c("condition", "S06", "S03"))
-DESeqresults[[13]] <- results(dds, contrast = c("condition", "S05", "S04"))
-DESeqresults[[14]] <- results(dds, contrast = c("condition", "S06", "S04"))
-DESeqresults[[15]] <- results(dds, contrast = c("condition", "S06", "S05"))
+DESEq_comparisons <- list(c("condition", "S02", "S01"),
+                          c("condition", "S03", "S01"),
+                          c("condition", "S04", "S01"),
+                          c("condition", "S05", "S01"),
+                          c("condition", "S06", "S01"),
+                          c("condition", "S03", "S02"),
+                          c("condition", "S04", "S02"),
+                          c("condition", "S05", "S02"),
+                          c("condition", "S06", "S02"),
+                          c("condition", "S04", "S03"),
+                          c("condition", "S05", "S03"),
+                          c("condition", "S06", "S03"),
+                          c("condition", "S05", "S04"),
+                          c("condition", "S06", "S04"),
+                          c("condition", "S06", "S05"))
+DESeqresults <- map(seq_along(DESEq_comparisons), function(i) dds %>% results(contrast = DESEq_comparisons[[i]]))
 DESeq2_results <- DESeqresults %>% map(as.data.frame) %>% map(rownames_to_column) %>% map(arrange, desc(padj)) %>% map(mutate, pi_value = abs(log2FoldChange) * (-1) * log10(padj)) %>% purrr::set_names(c(comparisons))
 DESeq2_results <- DESeq2_results %>%
   map(mutate, Product = if_else(is.na(match(rowname, as.character(RefSeq_gff.genes$Name))),
@@ -510,14 +510,9 @@ Hib_quintuple_venn <- draw.quintuple.venn(
 # KEGG enrichment
 ```{r, fig.width=10, fig.height=7}
 Hib_DEGs <- edgeR_DE_names # %>% map(str_to_upper)
-
 KEGG_DEGs <- Hib_DEGs %>% compareCluster(fun = "enrichKEGG", organism = "hiu", pvalueCutoff = 1)
-
 KEGG_DEGs@compareClusterResult <- KEGG_DEGs@compareClusterResult %>% filter(p.adjust < 0.05) %>% filter(Count > 2)
-
-KEGG_DEGs_df <- KEGG_DEGs %>% as.data.frame()
-
-KEGG_DEGs_df$geneID <- KEGG_DEGs_df %>% order_genes("geneID")
+KEGG_DEGs_df <- KEGG_DEGs %>% as.data.frame() %>% mutate(geneID = geneID %>% order_genes("geneID"))
 
 mar <- c(5.1, 4.1, 4.1, 2.1)
 KEGG_DEGs %>% dotplot(font.size = 12, includeAll = TRUE, showCategory = 100) + theme(axis.text.x = element_text(angle = 45, hjust = 1))

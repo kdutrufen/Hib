@@ -21,42 +21,49 @@ knitr::opts_chunk$set(echo = TRUE)
 setwd("~/Dropbox/Hib")
 ```
 
-# get_Attribute_Field
+# Load packages
 ```{r}
-get_Attribute_Field = function (x, field, attrsep = "; ") 
-{
-    s = strsplit(x, split = attrsep, fixed = TRUE)
-    sapply(s, function(atts) {
-        a = strsplit(atts, split = "=", fixed = TRUE)
-        m = match(field, sapply(a, "[", 1))
-        if (!is.na(m)) {
-            rv = a[[m]][2]
-        }
-        else {
-            rv = as.character(NA)
-        }
-        return(rv)
-    })
-}
+library(tidyverse)
+library(RColorBrewer)
+library(ballgown)
+library(WGCNA)
+library(cluster)
+library(RUVSeq)
+library(EDASeq)
+library(edgeR)
+library(RUVSeq)
+library(clusterProfiler)
+library(data.table)
+library(plyr)
+library(plotrix)
+source("~/Dropbox/kdutrufenr/kdutrufenr.R")
+options(stringsAsFactors = FALSE)
+```
+
+```{r}
+path_to_files <- "~/Dropbox/Hib_Data/"
 ```
 
 # Protein list
 ```{r, message=FALSE}
-library(tidyverse)
-Hib_proteins <- read_delim("~/Dropbox/Hib_Data/Haemophilus_influenzae_10810.GCF_000210875.1.proteintable.txt", delim = "\t", escape_double = FALSE, trim_ws = TRUE) %>% as.data.frame
+Hib_proteins <- path_to_files %>% paste0("Haemophilus_influenzae_10810.GCF_000210875.1.proteintable.txt") %>% read_delim(delim = "\t", escape_double = FALSE, trim_ws = TRUE) %>% as.data.frame()
 ```
 
 # Gene list
 ```{r, message=FALSE}
-library(ballgown)
-library(tidyverse)
-RefSeq_gff.genes <- gffRead("~/Dropbox/Hib_Data/GCF_000210875.1_ASM21087v1_genomic.gff") %>% filter(feature == "gene") %>% mutate(locustag = get_Attribute_Field(attributes, "Name", attrsep = ";")) %>% mutate(ID = get_Attribute_Field(attributes, "ID", attrsep = ";")) %>% mutate(OldLocusTag = get_Attribute_Field(attributes, "old_locus_tag", attrsep = ";")) %>% mutate(Gene_length = end-start) %>% full_join(Hib_proteins) %>% select(Name = locustag, OldLocusTag, product)
+RefSeq_gff.genes <- path_to_files %>% paste0("GCF_000210875.1_ASM21087v1_genomic.gff") %>% gffRead() %>%
+  filter(feature == "gene") %>%
+  mutate(locustag = get_Attribute_Field(attributes, "Name", attrsep = ";")) %>%
+  mutate(ID = get_Attribute_Field(attributes, "ID", attrsep = ";")) %>%
+  mutate(OldLocusTag = get_Attribute_Field(attributes, "old_locus_tag", attrsep = ";")) %>%
+  mutate(Gene_length = end - start) %>%
+  full_join(Hib_proteins) %>%
+  dplyr::select(Name = locustag, OldLocusTag, product)
 ```
 
-# Read in Hib Matrix form Rsubread alignment
+# Read in Hib Matrix form Hisat alignment
 ```{r }
-#Hib_CountData = read.csv("~/Dropbox/Hib_Data/Hib_Hisat2_featureCounts_table_countMultiMappingReads.txt", header=TRUE, sep = "\t", row.names = 1)
-library(tidyverse)
+# Hib_CountData = read.csv("~/Dropbox/Hib_Data/Hib_Hisat2_featureCounts_table_countMultiMappingReads.txt", header=TRUE, sep = "\t", row.names = 1)
 # Count matrix v1 (Hisat k -5, featureCounts -M)
 # Hib_CountData <- read_delim("~/Dropbox/Hib_Data/Hib_Hisat2_featureCounts_table_countMultiMappingReads.txt", "\t", escape_double = FALSE, trim_ws = TRUE, skip = 1) %>% as.data.frame
 
@@ -64,107 +71,97 @@ library(tidyverse)
 # Hib_CountData <- read_delim("~/Dropbox/Hib_Data/2_featureCounts_table_2018_09_14.txt", "\t", escape_double = FALSE, trim_ws = TRUE, skip = 1) %>% as.data.frame
 
 # Count matrix v3 (Hisat k -5, featureCounts -M --primary)
-Hib_CountData <- read_delim("~/Dropbox/Hib_Data/Hib_Hisat2_featureCounts_primary_table.txt", "\t", escape_double = FALSE, trim_ws = TRUE, skip = 1) %>% as.data.frame
+Hib_CountData <- path_to_files %>% paste0("Hib_Hisat2_featureCounts_primary_table.txt") %>% read_delim(delim = "\t", escape_double = FALSE, trim_ws = TRUE, skip = 1) %>% as.data.frame()
 
-library(stringr)
 # Remove rrf gene (ribosomal RNA)
 # set Geneid as row names
 # remove unwanted columns
 # change column names
 # countData = Hib_CountData %>% filter(!str_detect(Geneid, pattern = "rrf")) %>% column_to_rownames('Geneid') %>% select(-c(Chr, Start, End, Strand, Length)) %>% setNames(c("S01B01", "S01B02", "S01B03", "S01B04", "S02B01", "S02B02", "S02B03", "S02B04", "S03B01", "S03B02", "S03B03", "S03B04", "S04B01", "S04B02", "S04B03", "S04B04", "S05B01", "S05B02", "S05B03", "S05B04", "S06B01", "S06B02", "S06B03", "S06B04"))
 
-Hib_CountData = Hib_CountData %>% filter(!str_detect(Geneid, pattern = "rrf")) %>% column_to_rownames('Geneid') %>% select(-c(Chr, Start, End, Strand, Length)) %>% setNames( sort( as.vector( outer( paste0("S0", 1:6), paste0("B0", 1:4), paste0 ) ) ) )
+Hib_CountData <- Hib_CountData %>%
+  filter(!str_detect(Geneid, pattern = "rrf")) %>%
+  column_to_rownames("Geneid") %>%
+  dplyr::select(-c(Chr, Start, End, Strand, Length)) %>%
+  setNames(sort(as.vector(outer(paste0("S0", 1:6), paste0("B0", 1:4), paste0))))
 
-Hib_CountData$S03B02 = NULL
-
-THRESHOLD <- 0.01
-LFC = 1
+Hib_CountData$S03B02 <- NULL
 ```
 
 # Rename row names to old locus tag
 ```{r }
 # Rename Hib genes to old locus tag (available at KEGG)
-for (i in 1:nrow(RefSeq_gff.genes)){
-  if (is.na(RefSeq_gff.genes$OldLocusTag[i])=="FALSE"){
-    rownames(Hib_CountData)[which(rownames(Hib_CountData)==RefSeq_gff.genes$Name[i])] = RefSeq_gff.genes$OldLocusTag[i]
-  }
-}
-
 # Sort row names alphabetically
 # removeribosomal RNA
-Hib_CountData = Hib_CountData %>% rownames_to_column %>% arrange(rowname) %>% filter(!str_detect(rowname, pattern = "HIB_r")) %>% column_to_rownames('rowname')
+Hib_CountData <- Hib_CountData %>%
+  rownames_to_column() %>%
+  left_join(RefSeq_gff.genes, by = c("rowname" = "Name")) %>%
+  mutate(Gene_names = if_else(is.na(OldLocusTag), rowname, OldLocusTag)) %>%
+  arrange(Gene_names) %>%
+  filter(!str_detect(Gene_names, pattern = "HIB_r")) %>%
+  column_to_rownames(var = "Gene_names")
+Hib_CountData$rowname <- Hib_CountData$OldLocusTag <- Hib_CountData$product <- NULL
 ```
 
 # Sets design
 ```{r }
-# countData = Hib_CountData
-HibDesign = data.frame(row.names = colnames( Hib_CountData ), condition = str_sub( colnames(Hib_CountData), start = 1L, end = 3L ) )
-
-group=as.factor(HibDesign$condition)
-design <- model.matrix(~0 + group)
-colnames(design) <- levels(group)
-rownames(design) = colnames(Hib_CountData)
+HibDesign <- data.frame(row.names = colnames(Hib_CountData), condition = str_sub(colnames(Hib_CountData), start = 1L, end = 3L))
 ```
 
 # Unaligned
 ```{r }
-Hib_unaligned_CountData <- as.data.frame(read_delim("~/Dropbox/Hib_Data/unaligned_spades_salmon_counts_matrix.tsv", "\t", escape_double = FALSE, trim_ws = TRUE, skip = 0)) %>% column_to_rownames("transcript")
-
-library(seqinr)
-Hib_unaligned_fasta = read.fasta("~/Dropbox/Hib_Data/Hib_genes_b2g_HI_Supragenome.fasta", as.string=TRUE)
-
-Hib_unaligned_CountData = Hib_unaligned_CountData %>% rownames_to_column %>% filter(rowname %in% names(Hib_unaligned_fasta))
-
-# Hib_unaligned_CountData = Hib_unaligned_CountData[rownames(Hib_unaligned_CountData) %in% names(Hib_unaligned_fasta),]
-
-rownames(Hib_unaligned_CountData)[rownames(Hib_unaligned_CountData)=="NODE_15_length_7629_cov_3174.55_g0_i1"] = "H733_0475"
-
-countData = rbind(Hib_CountData, Hib_unaligned_CountData)
+# Hib_unaligned_CountData <- as.data.frame(read_delim("~/Dropbox/Hib_Data/unaligned_spades_salmon_counts_matrix.tsv", "\t", escape_double = FALSE, trim_ws = TRUE, skip = 0)) %>% column_to_rownames("transcript")
+# 
+# library(seqinr)
+# Hib_unaligned_fasta = read.fasta("~/Dropbox/Hib_Data/Hib_genes_b2g_HI_Supragenome.fasta", as.string=TRUE)
+# 
+# Hib_unaligned_CountData = Hib_unaligned_CountData %>% rownames_to_column %>% filter(rowname %in% names(Hib_unaligned_fasta))
+# 
+# # Hib_unaligned_CountData = Hib_unaligned_CountData[rownames(Hib_unaligned_CountData) %in% names(Hib_unaligned_fasta),]
+# 
+# rownames(Hib_unaligned_CountData)[rownames(Hib_unaligned_CountData)=="NODE_15_length_7629_cov_3174.55_g0_i1"] = "H733_0475"
+# 
+# countData = rbind(Hib_CountData, Hib_unaligned_CountData)
 ```
-
-
-# Load packages
-```{r, message=FALSE}
-library("WGCNA")
-library("cluster")
-library("RUVSeq")
-library("EDASeq")
-options(stringsAsFactors = FALSE)
-```
-
-
-# Sets design
-```{r }
-HibDesign1 = data.frame(row.names = colnames( countData ), condition = rep(c("S01", "S02", "S03", "S04", "S05", "S06"), each = 4))
-```
-
 
 # least significantly DE genes based on a first-pass DE analysis performed prior to RUVg normalization.
 ```{r, message=FALSE}
-library("edgeR")
-library("RUVSeq")
-group=as.factor(HibDesign1$condition)
-design <- model.matrix(~0 + group)
+group <- HibDesign$condition %>% as.factor()
+design <- model.matrix(~ 0 + group)
 colnames(design) <- levels(group)
-rownames(design) = colnames(countData)
+rownames(design) <- colnames(Hib_CountData)
 
-d <- DGEList(counts=countData, lib.size = colSums(countData), group=group)
+# group=as.factor(HibDesign1$condition)
+# design <- model.matrix(~0 + group)
+# colnames(design) <- levels(group)
+# rownames(design) = colnames(countData)
 
-myCPM = cpm(d)
-cpm(1, mean(d$samples$lib.size))
-CPMthershold = round(cpm(1, mean(d$samples$lib.size)), digits=2)
-keep <- rowSums(cpm(d)> as.vector(CPMthershold)) >= 4
-filtered <- d[keep,]
-summary(keep)
-dim(filtered )
+countData <- Hib_CountData
 
-d <- DGEList(counts=filtered$counts, lib.size = colSums(filtered$counts), group=group)
-d <- calcNormFactors(d , method="TMM")
-d <- estimateDisp(d , design , tagwise=TRUE, robust=TRUE)
-fit <- glmFit(d , design)
-lrt <- glmLRT(fit ,coef=2:6)
-top <-   topTags(lrt, n=nrow(d))$table
-empirical <-   rownames(filtered)[which(!(rownames(filtered) %in% rownames(top)[1:500]))]
+# myCPM = cpm(d)
+# cpm(1, mean(d$samples$lib.size))
+# CPMthershold = round(cpm(1, mean(d$samples$lib.size)), digits=2)
+# keep <- rowSums(cpm(d)> as.vector(CPMthershold)) >= 4
+# filtered <- d[keep,]
+# summary(keep)
+# dim(filtered )
+
+d <- countData %>% DGEList(lib.size = colSums(countData), group = group)
+keep <- rowSums(d %>% cpm() > 1) >= 1
+filtered <- d[keep, ]
+keep %>% summary()
+filtered %>% dim()
+
+filtered_countData <- filtered$counts
+
+fit <- filtered_countData %>%
+  DGEList(lib.size = colSums(filtered_countData), group = group) %>%
+  calcNormFactors(method = "TMM") %>%
+  estimateDisp(design = design, tagwise = TRUE, robust = TRUE) %>%
+  glmFit(design)
+lrt <- fit %>% glmLRT(coef = 2:6)
+top <- topTags(lrt, n = nrow(d))$table
+empirical <- rownames(filtered_countData)[which(!(rownames(filtered_countData) %in% rownames(top)[1:500]))]
 ```
 
 # Here, we consider all but the top 500 genes as ranked by edgeR p-values
@@ -172,27 +169,26 @@ empirical <-   rownames(filtered)[which(!(rownames(filtered) %in% rownames(top)[
 # The RUVg function  returns  two  pieces  of  information:
 # the estimated factors of unwanted variation nd the normalized counts obtained by regressing the original counts on the unwanted factors
 # The normalized values are stored in the normalizedCounts slot
-set2 <- RUVg(as.matrix(d), empirical, k=1)
+set2 <- fit$counts %>% as.matrix %>% RUVg(empirical, k=1)
 ```
 
 # plotRLE creates relative log expression (RLE) plot, initially proposed to measure the overall quality of a dataset 
 # plotRLE can also be used to visualize the presence of unwanted batch effects in the data
 ```{r}
-col.cell <- c("purple","orange", "blue", "red", "green", "black", "cyan", "darkgoldenrod", "darkorchid", "darkslategray")[as.factor(HibDesign1$condition)]
-# plotRLE creates relative log expression (RLE) plot, initially proposed to measure the overall quality of a dataset 
+# col.cell <- c("purple", "orange", "blue", "red", "green", "black", "cyan", "darkgoldenrod", "darkorchid", "darkslategray")[as.factor(HibDesign$condition)]
+col.cell <- brewer.pal(6, "Set3")[as.factor(HibDesign$condition)]
+# plotRLE creates relative log expression (RLE) plot, initially proposed to measure the overall quality of a dataset
 # plotRLE can also be used to visualize the presence of unwanted batch effects in the data
-par(mfrow=c(1,2), mar=c(8.1,4.1,4.1,2.1))
-plotRLE(as.matrix(filtered$counts), outline=FALSE, ylim=c(-4, 4), col=col.cell, main = "Samples with \n unwanted variation", las=2, cex.axis = 0.8, style = "full",
-       outlier.alpha = 0.1, outlier.shape = 3, outlier.size = 0, legend = TRUE)
-legend("topright", legend = levels(group), col=unique(col.cell), ncol=2, cex=0.7, border = "black", fill = unique(col.cell))
+par(mfrow = c(1, 2), mar = c(8.1, 4.1, 4.1, 2.1))
+filtered$counts %>% as.matrix() %>% plotRLE(outline = FALSE, ylim = c(-4, 4), col = col.cell, main = "Samples with \n unwanted variation", las = 2, cex.axis = 0.8, style = "full", outlier.alpha = 0.1, outlier.shape = 3, outlier.size = 0, legend = TRUE)
+legend("topright", legend = levels(group), col = unique(col.cell), ncol = 2, cex = 0.7, border = "black", fill = unique(col.cell))
 mtext(side = 1, text = "Samples", line = 7)
 mtext(side = 2, text = "Relative Log Expression (RLE)", line = 1.5)
 
-plotRLE(set2$normalizedCounts, outline=FALSE, ylim=c(-4, 4), col=col.cell, main = "Samples without \n unwanted variation", las=2, cex.axis = 0.8, style = "full",
-       outlier.alpha = 0.1, outlier.shape = 3, outlier.size = 0)
-legend("topright", legend = levels(group), col=unique(col.cell), ncol=2, cex=0.7, border = "black", fill = unique(col.cell))
+set2$normalizedCounts %>% plotRLE(outline = FALSE, ylim = c(-4, 4), col = col.cell, main = "Samples without \n unwanted variation", las = 2, cex.axis = 0.8, style = "full", outlier.alpha = 0.1, outlier.shape = 3, outlier.size = 0)
+legend("topright", legend = levels(group), col = unique(col.cell), ncol = 2, cex = 0.7, border = "black", fill = unique(col.cell))
 mtext(side = 1, text = "Samples", line = 7)
-mtext(side = 2, text = "Relative Log Expression (RLE)", line = 1.5) 
+mtext(side = 2, text = "Relative Log Expression (RLE)", line = 1.5)
 ```
 
 # Set design, removing batch effect
@@ -210,39 +206,42 @@ mtext(side = 2, text = "Relative Log Expression (RLE)", line = 1.5)
 
 # TMM normaliztion from edgeR
 ```{r}
-library("edgeR")
+WGCNAtpm <- set2$normalizedCounts %>%
+  DGEList(lib.size = set2$normalizedCounts %>% colSums(), group = group) %>%
+  calcNormFactors("TMM") %>%
+  cpm(normalized.lib.sizes = TRUE) %>%
+  as.data.frame()
 
-# countData = set2$normalizedCounts
-
-d <- DGEList(counts=set2$normalizedCounts, lib.size = colSums(set2$normalizedCounts), group=group)
-WGCNAremove = which(rowSums(d$counts==0)==24)
-WGCNAfiltered <- d[-WGCNAremove,]
-dim(WGCNAfiltered)
-WGCNAtmm <- calcNormFactors(WGCNAfiltered , "TMM")
-WGCNAtpm = cpm(WGCNAtmm, normalized.lib.sizes=TRUE)
-
-#WGCNAtpm = log2(WGCNAtpm+1)
-head(WGCNAtpm)
+WGCNAtpm %>% head()
 ```
 
 # plotRLE
 ```{r, fig.height = 5, fig.width = 15}
-col.cell <- c("purple","orange", "blue", "red", "green", "black")[as.factor(HibDesign1[,1])]
-par(mfrow=c(1,3))
-plotRLE(as.matrix(filtered$counts), outline=FALSE, ylim=c(-4, 4), col=col.cell, las = 2)
-title(xlab="Samples", line=4, cex.lab=1.2)
-plotRLE(set2$normalizedCounts, outline=FALSE, ylim=c(-4, 4), col=col.cell, las = 2)
-title(xlab="Samples", line=4, cex.lab=1.2)
-plotRLE(WGCNAtpm, outline=FALSE, ylim=c(-4, 4), col=col.cell, las = 2)
-title(xlab="Samples", line=4, cex.lab=1.2)
+# col.cell <- c("purple","orange", "blue", "red", "green", "black")[as.factor(HibDesign[,1])]
+col.cell <- brewer.pal(6, "Set3") %>% .[HibDesign$condition %>% as.factor]
+
+par(mfrow=c(1,3), mar = c(8.1, 4.1, 4.1, 2.1))
+filtered$counts %>% as.matrix() %>% plotRLE(outline = FALSE, ylim = c(-4, 4), col = col.cell, main = "Samples with \n unwanted variation", las = 2, cex.axis = 0.8, style = "full", outlier.alpha = 0.1, outlier.shape = 3, outlier.size = 0, legend = TRUE)
+legend("topright", legend = levels(group), col = unique(col.cell), ncol = 2, cex = 0.7, border = "black", fill = unique(col.cell))
+mtext(side = 1, text = "Samples", line = 7)
+mtext(side = 2, text = "Relative Log Expression (RLE)", line = 1.5)
+
+set2$normalizedCounts %>% plotRLE(outline = FALSE, ylim = c(-4, 4), col = col.cell, main = "Samples without \n unwanted variation", las = 2, cex.axis = 0.8, style = "full", outlier.alpha = 0.1, outlier.shape = 3, outlier.size = 0)
+legend("topright", legend = levels(group), col = unique(col.cell), ncol = 2, cex = 0.7, border = "black", fill = unique(col.cell))
+mtext(side = 1, text = "Samples", line = 7)
+mtext(side = 2, text = "Relative Log Expression (RLE)", line = 1.5)
+
+WGCNAtpm %>% as.matrix() %>% plotRLE(outline = FALSE, ylim = c(-4, 4), col = col.cell, main = "Samples without \n unwanted variation \n and normalized with TPM", las = 2, cex.axis = 0.8, style = "full", outlier.alpha = 0.1, outlier.shape = 3, outlier.size = 0, legend = TRUE)
+legend("topright", legend = levels(group), col = unique(col.cell), ncol = 2, cex = 0.7, border = "black", fill = unique(col.cell))
+mtext(side = 1, text = "Samples", line = 7)
+mtext(side = 2, text = "Relative Log Expression (RLE)", line = 1.5)
 ```
 
 
 # Transpose the expression data for further analysis
 # Henceforth, each row will correspond to a sample and each column to a gene
 ```{r}
-datExpr0 = as.data.frame(t(WGCNAtpm))
-datExpr0 = scale(datExpr0)
+datExpr0 <- WGCNAtpm %>% t() %>% as.data.frame() %>% scale()
 ```
 
 # Transpose the expression data for further analysis
@@ -255,51 +254,52 @@ datExpr0 = scale(datExpr0)
 # cluster the samples to see if there are any obvious outliers.
 # Plot the sample tree: Open a graphic output window of size 12 by 9 inches
 ```{r}
-sampleTree = hclust(dist(datExpr0), method = "average");
-plot(sampleTree, main = "", sub="", xlab="", cex.lab = 1.5, cex.axis = 1.5, cex.main = 2, ylab="altura")
+sampleTree <- datExpr0 %>% dist() %>% hclust(method = "average")
+plot(sampleTree, main = "", sub = "", xlab = "", cex.lab = 1.5, cex.axis = 1.5, cex.main = 2, ylab = "altura")
 abline(h = 1, col = "red") # Plot a line to show the cut
 ```
 
 ```{r}
 library(factoextra)
 
-color = grDevices::colors()[grep('gr(a|e)y', grDevices::colors(), invert = T)]
+color <- grDevices::colors()[grep("gr(a|e)y", grDevices::colors(), invert = T)]
 
-sampleTree = hclust(dist(datExpr0), method = "average")
+sampleTree <- hclust(dist(datExpr0), method = "average")
 
 # fviz_dend(sampleTree, cex = 0.5)
 
-fviz_dend(sampleTree, k = 6, # Cut in four groups
-          cex = 0.5, # label size
-          k_colors = c("purple","orange", "blue", "red", "green", "black"),
-          color_labels_by_k = TRUE, # color labels by groups
-          rect = TRUE # Add rectangle around groups
-          )
+fviz_dend(sampleTree,
+  k = 6, # Cut in four groups
+  cex = 0.5, # label size
+  k_colors = c("purple", "orange", "blue", "red", "green", "black"),
+  color_labels_by_k = TRUE, # color labels by groups
+  rect = TRUE # Add rectangle around groups
+)
 # abline(h = 1, col = "red") # Plot a line to show the cut
 ```
 
 # Determine cluster under the line
 ```{r}
-clust = cutreeStatic(sampleTree, cutHeight = 2500000, minSize = 10)
+clust <- cutreeStatic(sampleTree, cutHeight = 2500000, minSize = 10)
 table(clust)
 ```
 
 # clust contains the samples we want to keep.
 ```{r}
-keepSamples = (clust==1)
-datExpr = datExpr0[keepSamples, ]
-nGenes = ncol(datExpr)
-nSamples = nrow(datExpr)
+keepSamples <- (clust == 1)
+datExpr <- datExpr0[keepSamples, ]
+nGenes <- ncol(datExpr)
+nSamples <- nrow(datExpr)
 ```
 
 # To compare samples 2 by 2, 3 by 3..
 ```{r}
-nSets = 14
-multiExpr = vector(mode = "list", length = nSets)
-g = function(j) {if (j==0){result = 0}
-  else {result = sum(5-(1:j-1))}
-  return(result)}
-for (j in 0:3){for (i in 1:(5-j)){multiExpr[[i+g(j)]] = list(data = datExpr[(4*i-3):(4*i+4*j+4),])}}
+# nSets = 14
+# multiExpr = vector(mode = "list", length = nSets)
+# g = function(j) {if (j==0){result = 0}
+#   else {result = sum(5-(1:j-1))}
+#   return(result)}
+# for (j in 0:3){for (i in 1:(5-j)){multiExpr[[i+g(j)]] = list(data = datExpr[(4*i-3):(4*i+4*j+4),])}}
 
 ```
 
@@ -317,33 +317,35 @@ powers = c(c(2:10), seq(from = 12, to=30, by=2))
 # scale-free topology fitting index is defined as the square of the correlation coefficient between log(p(dk)) and log(BinNo)
 # Networks whose scale-free topology index R2 is close to 1 are defined to be approximately scale free.
 # connectivity distribution p(r) may be better moduled using an Exponentially truncated power law: p(r) = PositiveNumber*r^(-?)*exp(-ar); ? and a positive real numbers 
-sft = pickSoftThreshold(datExpr, powerVector = powers, verbose = 2, moreNetworkConcepts=TRUE)
-softPower = sft$fitIndices[min(which(sft$fitIndices[,2]>0.8)),1]
-if (is.na(softPower)==TRUE){softPower=10}
+sft <- datExpr %>% pickSoftThreshold(powerVector = powers, verbose = 2, moreNetworkConcepts = TRUE)
+softPower <- sft$fitIndices %>% filter(SFT.R.sq > 0.8) %>% dplyr::select(Power) %>% pull() %>% min()
+
+# softPower = sft$fitIndices[min(which(sft$fitIndices[,2]>0.8)),1]
+if (is.na(softPower)) {  softPower <- 10 }
 ```
 
 
 # Plot the results:
 ```{r, fig.width=10, fig.height=5}
-op<-par(no.readonly=TRUE)
-par(mar=c(6,6,3,3),cex.axis=1.5,cex.lab=1.5)
-par(mfrow = c(1,2))
-cex1 = 0.9
+op <- par(no.readonly = TRUE)
+par(mar = c(6, 6, 3, 3), cex.axis = 1.5, cex.lab = 1.5)
+par(mfrow = c(1, 2))
+cex1 <- 0.9
 
 # Scale-free topology fit index as a function of the soft-thresholding power
-plot(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2], xlab="Soft Threshold (power)",ylab="Scale Free Topology Model Fit",type="n", main = paste("Scale independence"))
-axis(side=2, at = c(0.0, 0.2, 0.4, 0.6, 0.8), labels = format(c(0.0, 0.2, 0.4, 0.6, 0.8), decimal.mark="."))
-text(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2], labels=powers,cex=cex1,col="red");
+plot(sft$fitIndices$Power, -sign(sft$fitIndices$slope) * sft$fitIndices$SFT.R.sq, xlab = "Soft Threshold (power)", ylab = "Scale Free Topology Model Fit", type = "n", main = paste("Scale independence"))
+axis(side = 2, at = c(0.0, 0.2, 0.4, 0.6, 0.8), labels = format(c(0.0, 0.2, 0.4, 0.6, 0.8), decimal.mark = "."))
+text(sft$fitIndices$Power, -sign(sft$fitIndices$slope) * sft$fitIndices$SFT.R.sq, labels = powers, cex = cex1, col = "red")
 # this line corresponds to using an R^2 cut-off of h
-abline(h=0.80,col="red")
+abline(h = 0.80, col = "red")
 # Mean connectivity as a function of the soft-thresholding power
-plot(sft$fitIndices[,1], sft$fitIndices[,5], xlab="Soft Threshold (power)",ylab="Mean Connectivity", type="n", main = paste("Mean Connectivity"))
-text(sft$fitIndices[,1], sft$fitIndices[,5], labels=powers, cex=cex1,col="red")
+plot(sft$fitIndices$Power, sft$fitIndices$mean.k., xlab = "Soft Threshold (power)", ylab = "Mean Connectivity", type = "n", main = paste("Mean Connectivity"))
+text(sft$fitIndices$Power, sft$fitIndices$mean.k., labels = powers, cex = cex1, col = "red")
 ```
 
 
 ```{r}
-datExpr <- apply(datExpr, c(1, 2), as.numeric)
+datExpr <- datExpr %>% apply(MARGIN = c(1, 2), FUN = as.numeric)
 ```
 
 # Co-expression similarity and adjacency
@@ -355,7 +357,7 @@ datExpr <- apply(datExpr, c(1, 2), as.numeric)
 # n?n dimensional adjacency matrix A = (Aij), where the entry Aij quantifies the connection strength from node i to node j
 # For a weighted network, Aij takes on a real number between 0 and 1
 # The power adjacency function changes the topological properties (network concepts) of weighted networks
-adjacency = adjacency(datExpr, power = softPower)
+adjacency <- datExpr %>% adjacency(power = softPower)
 ```
 
 # Evaluate the scale free topology fit of the network
@@ -365,7 +367,7 @@ adjacency = adjacency(datExpr, power = softPower)
 #sizeGrWindow(10,5)
 #hist(adjacency)
 #scaleFreePlot(adjacency , truncated = TRUE, main="Topologia sem escala\n")
-scaleFreePlot(adjacency , truncated = TRUE, cex.lab = 1.2, cex.axis = 1.5)
+adjacency %>% scaleFreePlot(truncated = TRUE, cex.lab = 1.2, cex.axis = 1.5)
 ```
 
 # Topological Overlap Matrix (TOM)
@@ -375,8 +377,8 @@ scaleFreePlot(adjacency , truncated = TRUE, cex.lab = 1.2, cex.axis = 1.5)
 # The function TOMsimilarity() takes as input a weighted (or possibly unweighted) adjacency matrix and outputs the first order (m=1) GTOMmeasure
 # This function cannot calculate higher order (m > 1) generalizations of the TOM measure
 # Turn adjacency into topological overlap
-TOM = TOMsimilarity(adjacency)
-dissTOM = 1-TOM
+TOM <- adjacency %>% TOMsimilarity()
+dissTOM <- 1 - TOM
 ```
 
 
@@ -386,82 +388,285 @@ dissTOM = 1-TOM
 # use the TOM-based dissimilarity as input of average linkage hierarchical clustering
 # which results in a cluster tree (dendrogram) of the network
 # Call the hierarchical clustering function hclust() to produce a hierarchical clustering tree (dendrogram) of genes
-geneTree = hclust(as.dist(dissTOM), method = "average")
+geneTree <- dissTOM %>% as.dist() %>% hclust(method = "average")
 ```
 
-# Plot the resulting clustering tree (dendrogram)
+# Plot the resulting clusteringarallel tree (dendrogram)
 ```{r, fig.width=7, fig.height=7}
 # In the clustering tree (dendrogram), each leaf, that is a short vertical line, corresponds to a gene.
 # Gene modules are defined as branches of the hierarchical clustering tree (dendrogram)
 # Branches of the dendrogram group together densely interconnected, highly co-expressed genes.
-plot(geneTree, xlab="", sub="", main = "Gene clustering on TOM-based dissimilarity", labels = FALSE, hang = 0.04)
+geneTree %>% plot(xlab = "", sub = "", main = "Gene clustering on TOM-based dissimilarity", labels = FALSE, hang = 0.04)
 ```
 
 # Minimum Module Size
 ```{r}
-minModuleSizetest = seq(from = 10, to = 50, by = 1)
-dynamicModstest=vector()
+# dynamicModstest_list <- map(1:100, function(i) geneTree %>% cutreeDynamic(distM = dissTOM, deepSplit = 4, pamRespectsDendro = FALSE, minClusterSize = i) %>% max()) %>% unlist()
+# dynamicModstest_df <- data.frame(minimum_n_genes = 1:100, n_modules = dynamicModstest)
+# dynamicModstest_df %>% ggplot(aes(x = minimum_n_genes, y = n_modules)) + geom_line() + geom_point() + theme_bw()
+# 
+# estimate_elbow <- function(n_genes = n_genes, TOM = TOM, deepSplit = deepSplit, gene_names = gene_names) {
+#   dissTOM = 1 - TOM
+#   dynamicModstest_list <- map(n_genes, function(i) geneTree %>% cutreeDynamic(distM = dissTOM, deepSplit = deepSplit, pamRespectsDendro = FALSE, minClusterSize = i))
+#   dynamicModstest <- map(seq_along(dynamicModstest_list), function(i) dynamicModstest_list[[i]] %>% max()) %>% unlist()
+#   dynamicColorstest <- map(seq_along(dynamicModstest_list), function(i) dynamicModstest_list[[i]] %>% labels2colors())
+#   dynamicColorstest1 <- map(seq_along(dynamicModstest_list), function(i) data.frame(dynamicColors = dynamicColorstest[[i]], genes = gene_names))
+#   premoduleblockstest <- map(seq_along(dynamicColorstest1), function(i) dynamicColorstest1[[i]] %>% split(f = .$dynamicColors) %>% map(dplyr::select, -dynamicColors) %>% map(pull))
+#   gene_names <- gene_names
+#   inModuletest <- map(seq_along(premoduleblockstest), function(i) map(seq_along(premoduleblockstest[[i]]), function(j) gene_names %in% premoduleblockstest[[i]][[j]]))
+#   # Select the corresponding Topological Overlap
+#   modTOMtest <- map(seq_along(inModuletest), function(i) map(seq_along(inModuletest[[i]]), function(j) TOM[inModuletest[[i]][[j]], inModuletest[[i]][[j]]]))
+#   for (i in 1:length(modTOMtest)) {
+#     for (j in 1:length(modTOMtest[[i]])) {
+#       dimnames(modTOMtest[[i]][[j]]) <- list(premoduleblockstest[[i]][[j]], premoduleblockstest[[i]][[j]])
+#     }
+#   }
+#   ssd <- function(x) sum((x - mean(x))^2)
+#   SSD <- map(seq_along(modTOMtest), function(i) map(seq_along(modTOMtest[[i]]), function(j) modTOMtest[[i]][[j]] %>% ssd())) %>% map(unlist) %>% map(sum) %>% unlist()
+#   dynamicModstest_df <- data.frame(minimum_n_genes = n_genes, n_modules = dynamicModstest, SSD = SSD)
+#   gg_plot <- dynamicModstest_df %>% ggplot(aes(x = n_modules, y = SSD)) + geom_line() + geom_point() + theme_bw()
+#   results <- list()
+#   results[["plot"]] <- gg_plot
+#   results[["table"]] <- dynamicModstest_df
+#   return(results)
+# }
+# 
+# estimated <- estimate_elbow(n_genes = 1:100, dissTOM = dissTOM, deepSplit = 4, gene_names = datExpr %>% colnames())
+# 
+# 
+# parallel_estimate_elbow <- function(n_genes = n_genes, TOM = TOM, deepSplit = deepSplit, gene_names = gene_names, no_cores = detectCores() - 1) {
+#   library(parallelMap)
+#   # Initiate cluster
+#   parallelStartSocket(no_cores)
+#   dissTOM = 1 - TOM
+#   dynamicModstest_list <- map(n_genes, function(i) geneTree %>% cutreeDynamic(distM = dissTOM, deepSplit = deepSplit, pamRespectsDendro = FALSE, minClusterSize = i))
+#   dynamicModstest <- map(seq_along(dynamicModstest_list), function(i) dynamicModstest_list[[i]] %>% max()) %>% unlist()
+#   dynamicColorstest <- map(seq_along(dynamicModstest_list), function(i) dynamicModstest_list[[i]] %>% labels2colors())
+#   dynamicColorstest1 <- map(seq_along(dynamicModstest_list), function(i) data.frame(dynamicColors = dynamicColorstest[[i]], genes = gene_names))
+#   premoduleblockstest <- map(seq_along(dynamicColorstest1), function(i) dynamicColorstest1[[i]] %>% split(f = .$dynamicColors) %>% map(dplyr::select, -dynamicColors) %>% map(pull))
+#   gene_names <- gene_names
+#   inModuletest <- map(seq_along(premoduleblockstest), function(i) map(seq_along(premoduleblockstest[[i]]), function(j) gene_names %in% premoduleblockstest[[i]][[j]]))
+#   # Select the corresponding Topological Overlap
+#   modTOMtest <- map(seq_along(inModuletest), function(i) map(seq_along(inModuletest[[i]]), function(j) TOM[inModuletest[[i]][[j]], inModuletest[[i]][[j]]]))
+#   for (i in 1:length(modTOMtest)) {
+#     for (j in 1:length(modTOMtest[[i]])) {
+#       dimnames(modTOMtest[[i]][[j]]) <- list(premoduleblockstest[[i]][[j]], premoduleblockstest[[i]][[j]])
+#     }
+#   }
+#   ssd <- function(x) sum((x - mean(x))^2)
+#   SSD <- map(seq_along(modTOMtest), function(i) map(seq_along(modTOMtest[[i]]), function(j) modTOMtest[[i]][[j]] %>% ssd())) %>% map(unlist) %>% map(sum) %>% unlist()
+#   dynamicModstest_df <- data.frame(minimum_n_genes = n_genes, n_modules = dynamicModstest, SSD = SSD)
+#   gg_plot <- dynamicModstest_df %>% ggplot(aes(x = n_modules, y = SSD)) + geom_line() + geom_point() + theme_bw()
+#   parallelStop()
+#   results <- list()
+#   results[["plot"]] <- gg_plot
+#   results[["table"]] <- dynamicModstest_df
+#   return(results)
+# }
+# 
+# estimated_parallel <- parallel_estimate_elbow(n_genes = 1:100, TOM = TOM, deepSplit = 4, gene_names = datExpr %>% colnames())
+# 
+# estimated_parallel$data <- estimated_parallel$data %>% mutate(SSD = SSD %>% round(digits = 2))
+# 
+# estimated_parallel$data %>% write.table(file = "~/Dropbox/Hib_Data/Hib_WGCNA_elbow_method_like.tsv", sep="\t", row.names = FALSE, col.names = TRUE, quote = FALSE )
+#   
+# # estimated_comparison = microbenchmark::microbenchmark(
+# #   estimated <- estimate_elbow(n_genes = 1:100, dissTOM = dissTOM, deepSplit = 4, gene_names = datExpr %>% colnames()),
+# #   estimated_parallel = parallel_estimate_elbow(n_genes = 1:100, dissTOM = dissTOM, deepSplit = 4, gene_names = datExpr %>% colnames()),
+# #   times = 20
+# # )
+# 
+# library(parallel)
+# library(parallelMap)
+# # from https://mlr.mlr-org.com/articles/tutorial/parallelization.html
+# parallel_bmr <- function(lrns, task_train, rdesc, meas) {
+#   # Calculate the number of cores
+#   no_cores <- detectCores() - 1
+#   # Initiate cluster
+#   parallelStartSocket(no_cores)
+#   set.seed(666)
+#   bmr <- benchmark(lrns, task_train, rdesc, meas, show.info = FALSE)
+#   parallelStop()
+#   bmr
+# }
+# 
+# dynamicModstest_list <- map(1:100, function(i) geneTree %>% cutreeDynamic(distM = dissTOM, deepSplit = 4, pamRespectsDendro = FALSE, minClusterSize = i) )
+# 
+# # dynamicModstest <- geneTree %>% cutreeDynamic(distM = dissTOM, deepSplit = 4, pamRespectsDendro = FALSE, minClusterSize = 10)
+# map(seq_along(dynamicModstest_list) , function(i) dynamicModstest_list[[i]] %>% table())
+# dynamicColorstest <- map(seq_along(dynamicModstest_list) , function(i) dynamicModstest_list[[i]] %>% labels2colors())
+# 
+# dynamicColorstest1 <- map(seq_along(dynamicModstest_list) , function(i) data.frame(dynamicColors = dynamicColorstest[[i]], genes = rownames(adjacency)) )
+# 
+# premoduleblockstest <- map(seq_along(dynamicColorstest1) , function(i) dynamicColorstest1[[i]] %>% split(f = .$dynamicColors) %>% map(dplyr::select, -dynamicColors) %>% map(pull) )
+# 
+# gene_names <- datExpr %>% colnames()
+# inModuletest <- map(seq_along(premoduleblockstest), function(i) map(seq_along(premoduleblockstest[[i]]), function(j) gene_names %in% premoduleblockstest[[i]][[j]] ) )
+# 
+# # Select the corresponding Topological Overlap
+# modTOMtest <- map(seq_along(inModuletest), function(i) map(seq_along(inModuletest[[i]]), function(j) TOM[inModuletest[[i]][[j]], inModuletest[[i]][[j]]]))
+# 
+# # map(seq_along(modTOMtest), function(i) map(seq_along(modTOMtest[[i]]), function(j) dimnames(modTOMtest[[i]][[j]]) <- list(premoduleblockstest[[i]][[j]], premoduleblockstest[[i]][[j]]) ))
+# 
+# for (i in 1:length(modTOMtest)) { for (j in 1:length(modTOMtest[[i]])) {dimnames(modTOMtest[[i]][[j]]) <- list(premoduleblockstest[[i]][[j]], premoduleblockstest[[i]][[j]]) } }
+# 
+# # Function to calculate the sum of squared deviations (from the mean)
+# # ssd <- function(x) var(x)*(length(x)-1)
+# ssd <- function(x) sum((x-mean(x))^2)
+# 
+# # SSD <- map(seq_along(modTOMtest), function(i) map(seq_along(modTOMtest[[i]]), function(j) modTOMtest[[i]][[j]] %>% ssd() %>% sum())) %>% map(unlist) %>% map(sum) %>% unlist()
+# 
+# SSD <- map(seq_along(modTOMtest), function(i) map(seq_along(modTOMtest[[i]]), function(j) modTOMtest[[i]][[j]] %>% ssd())) %>% map(unlist) %>% map(sum) %>% unlist()
+# 
+# # library(microbenchmark)
+# # test <- microbenchmark(
+# #   SSD <- map(seq_along(modTOMtest), function(i) map(seq_along(modTOMtest[[i]]), function(j) modTOMtest[[i]][[j]] %>% ssd() %>% sum())) %>% map(unlist) %>% map(sum) %>% unlist(),
+# #   SSD_1 <- map(seq_along(modTOMtest), function(i) map(seq_along(modTOMtest[[i]]), function(j) modTOMtest[[i]][[j]] %>% ssd_1() %>% sum())) %>% map(unlist) %>% map(sum) %>% unlist(),
+# #   times = 20
+# # )
+# 
+# # x<-c(16, 17, 18, 20, 16, 20, 20, 18, 18, 15, 16, 16, 19, 17, 19)
+# # test_1 <- microbenchmark(
+# #   SSD <- x %>% ssd,
+# #   SSD_1 <- x %>% ssd_1,
+# #   times = 1000
+# # )
+# 
+# 
+# dynamicModstest_df <- data.frame(minimum_n_genes = 1:100, 
+#                                  n_modules = dynamicModstest,
+#                                  SSD = SSD)
+# 
+# library(plotly)
+# p <- dynamicModstest_df %>% plot_ly(x = ~minimum_n_genes, y = ~n_modules, z = ~SSD, type = 'scatter3d', mode = 'lines', opacity = 1, line = list(width = 6, color = ~color, reverscale = FALSE))
+# # chart_link = p %>% api_create(filename="line3d-basic")
+# # chart_link
+# 
+# dynamicModstest_df %>% ggplot(aes(x = n_modules, y = SSD)) + geom_line() + geom_point() + theme_bw()
+# # dynamicModstest_df %>% write.table(file = paste0("~/Dropbox/Hib_Data/Hib_WGCNA_elbow_method_like.tsv" ), sep="\t", row.names = FALSE, col.names = TRUE, quote = FALSE )
+# 
+# dynamicModstest_df %>% ggplot(aes(x = minimum_n_genes, y = n_modules)) + geom_line() + geom_point() + theme_bw()
+# 
+# # dynamicModstest_1 <- vector()
+# # for (i in 1:100) {dynamicModstest_1[i] <- geneTree %>% cutreeDynamic(distM = dissTOM, deepSplit = 4, pamRespectsDendro = FALSE, minClusterSize = i) %>% max}
+# 
+# # forxmap_test <- microbenchmark::microbenchmark(
+# #   lapply_dynamicModstest = lapply(5:6, function(i) geneTree %>% cutreeDynamic(distM = dissTOM, deepSplit = 4, pamRespectsDendro = FALSE, minClusterSize = i) %>% max),
+# #   map_dynamicModstest = map(5:6, function(i) geneTree %>% cutreeDynamic(distM = dissTOM, deepSplit = 4, pamRespectsDendro = FALSE, minClusterSize = i) %>% max),
+# #   for_dynamicModstest = for (i in 5:6) { geneTree %>% cutreeDynamic(distM = dissTOM, deepSplit = 4, pamRespectsDendro = FALSE, minClusterSize = i) %>% max },
+# #   times = 100
+# # )
+# # 
+# # qplot(y=time, data=forxmap_test, colour=expr) + scale_y_log10()
+```
 
-for (i in 1:length(minModuleSizetest)){
-  dynamicModstest[i] = cutreeDynamic(dendro = geneTree, distM = dissTOM, deepSplit = 4, pamRespectsDendro = FALSE, minClusterSize = minModuleSizetest[i])
-}
 
-plot(minModuleSizetest, dynamicModstest)
+# function parallel_estimate_elbow
+```{r}
+# n_genes = 1:100
+# TOM = TOM
+# deepSplit = 4
+# gene_names = datExpr %>% colnames()
+# no_cores = detectCores() - 1
+# 
+# parallel_estimate_elbow <- function(n_genes = n_genes, TOM = TOM, deepSplit = deepSplit, gene_names = gene_names, no_cores = detectCores() - 1) {
+#   library(parallelMap)
+#   # Initiate cluster
+#   parallelStartSocket(no_cores)
+#   # estimate geneTree
+#   geneTree <- dissTOM %>% as.dist() %>% hclust(method = "average")
+#   # dissTOM
+#   dissTOM = 1 - TOM
+#   dynamicModstest_list <- map(n_genes, function(i) geneTree %>% cutreeDynamic(distM = dissTOM, deepSplit = deepSplit, pamRespectsDendro = FALSE, minClusterSize = i))
+#   
+#   dynamicModstest <- map(seq_along(dynamicModstest_list), function(i) dynamicModstest_list[[i]] %>% max()) %>% unlist()
+#   dynamicColorstest <- map(seq_along(dynamicModstest_list), function(i) dynamicModstest_list[[i]] %>% labels2colors())
+#   dynamicColorstest1 <- map(seq_along(dynamicModstest_list), function(i) data.frame(dynamicColors = dynamicColorstest[[i]], genes = gene_names))
+#   premoduleblockstest <- map(seq_along(dynamicColorstest1), function(i) dynamicColorstest1[[i]] %>% split(f = .$dynamicColors) %>% map(dplyr::select, -dynamicColors) %>% map(pull))
+#   gene_names <- gene_names
+#   inModuletest <- map(seq_along(premoduleblockstest), function(i) map(seq_along(premoduleblockstest[[i]]), function(j) gene_names %in% premoduleblockstest[[i]][[j]]))
+#   # Select the corresponding Topological Overlap
+#   modTOMtest <- map(seq_along(inModuletest), function(i) map(seq_along(inModuletest[[i]]), function(j) TOM[inModuletest[[i]][[j]], inModuletest[[i]][[j]]]))
+#   for (i in 1:length(modTOMtest)) {
+#     for (j in 1:length(modTOMtest[[i]])) {
+#       dimnames(modTOMtest[[i]][[j]]) <- list(premoduleblockstest[[i]][[j]], premoduleblockstest[[i]][[j]])
+#     }
+#   }
+#   ssd <- function(x) sum((x - mean(x))^2)
+#   SSD <- map(seq_along(modTOMtest), function(i) map(seq_along(modTOMtest[[i]]), function(j) modTOMtest[[i]][[j]] %>% ssd())) %>% map(unlist) %>% map(sum) %>% unlist()
+#   dynamicModstest_df <- data.frame(minimum_n_genes = n_genes, n_modules = dynamicModstest, SSD = SSD)
+#   gg_plot <- dynamicModstest_df %>% ggplot(aes(x = n_modules, y = SSD)) + geom_line() + geom_point() + theme_bw()
+#   parallelStop()
+#   results <- list(plot = gg_plot, 
+#                   table = dynamicModstest_df)
+#   # results[["plot"]] <- gg_plot
+#   # results[["table"]] <- dynamicModstest_df
+#   return(results)
+# }
 ```
 
 ```{r}
-minModuleSize = 21
+# estimated_parallel <- parallel_estimate_elbow(n_genes = 1:100, TOM = TOM, deepSplit = 4, gene_names = datExpr %>% colnames())
+```
+
+```{r}
+# library(factoextra)
+# library(NbClust)
+# 
+# NbClust_results <- NbClust(data = WGCNAtpm, diss = dissTOM, distance = NULL, method = "average", max.nc = 500, index = "all")
+# 
+# fviz_nbclust_results <- dissTOM %>% fviz_nbclust(FUNcluster = kmeans, method = "wss", k.max = 100)
+# fviz_nbclust_results <- dissTOM %>% fviz_nbclust(FUNcluster = kmeans, method = "silhouette")
+# fviz_nbclust_results <- dissTOM %>% fviz_nbclust(FUNcluster = kmeans, method = "gap_stat")
+```
+
+```{r}
+minModuleSize <- 15
 ```
 
 # Module identification using dynamic tree cut:
 ```{r}
-dynamicMods = cutreeDynamic(dendro = geneTree, distM = dissTOM, deepSplit = 4, pamRespectsDendro = FALSE, minClusterSize = minModuleSize)
-table(dynamicMods)
+dynamicMods <- geneTree %>% cutreeDynamic(distM = dissTOM, deepSplit = 4, pamRespectsDendro = FALSE, minClusterSize = minModuleSize)
+dynamicMods %>% table()
 ```
 
 # Convert numeric lables into colors
 ```{r}
-dynamicColors = labels2colors(dynamicMods)
+dynamicColors <- dynamicMods %>% labels2colors()
 ```
 
 # Genes of proper modules (branches) are assigned a color
 # Genes outside any proper module are colored gray
 ```{r}
-table(dynamicColors)
+dynamicColors %>% table()
 ```
 
 # Genes in modules
 ```{r, message=FALSE}
-library(dplyr)
-dynamicColors1 = as.matrix(dynamicColors)
-rownames(dynamicColors1) = rownames(adjacency)
-premoduleblocks =  vector(mode = "list", length = length(table(dynamicColors)))
-for (i in 1:length(table(dynamicColors1))){premoduleblocks[[i]] = as.matrix(dynamicColors1[which(dynamicColors1==names(table(dynamicColors1))[i]),1])}
-
-#for(i in 1:length(table(dynamicColors1))){print(rownames(premoduleblocks[[i]]))}
+dynamicColors1 = data.frame(dynamicColors = dynamicColors, genes = rownames(adjacency))
+premoduleblocks <- dynamicColors1 %>% split(f = .$dynamicColors) %>% map(dplyr::select, -dynamicColors) %>% map(pull)
 ```
 
 # Plot the dendrogram and colors underneath
 ```{r, fig.width=7, fig.height=7}
-plotDendroAndColors(geneTree, dynamicColors, "Dynamic Tree Cut", dendroLabels = FALSE, hang = 0.03, addGuide = TRUE, guideHang = 0.05, main = "Gene dendrogram and module colors")
-
+geneTree %>% plotDendroAndColors(dynamicColors, "Dynamic Tree Cut", dendroLabels = FALSE, hang = 0.03, addGuide = TRUE, guideHang = 0.05, main = "Gene dendrogram and module colors")
 ```
 
 # Merging of modules whose expression profiles are very similar
 ```{r}
 # Calculate eigengenes
-MEList = moduleEigengenes(datExpr, colors = dynamicColors)
-MEs = MEList$eigengenes
+MEList <- datExpr %>% moduleEigengenes(colors = dynamicColors)
+MEs <- MEList$eigengenes
 ```
 
 # Calculate dissimilarity of module eigengenes
 ```{r}
-MEDiss = 1-cor(MEs)
+MEDiss <- 1 - cor(MEs)
 ```
 
 # Cluster module eigengenes
 ```{r}
-METree = hclust(as.dist(MEDiss), method = "average")
+METree <- MEDiss %>% as.dist() %>% hclust(method = "average")
 ```
 
 # Plot the result
@@ -471,33 +676,64 @@ plot(METree, main = "Clustering of module eigengenes", xlab = "", sub = "")
 
 # We choose a height cut of 0.25 to merge, corresponding to correlation of 0.75.
 ```{r}
-MEDissThres = 0.25
-
-# MEDissThrestest = seq(from = 0.05, to=0.50, by=0.05)
-# mergetest = mergetesttablelength = vector()
+# # mergetest <- map(seq(from = 0.05, to = 0.50, by = 0.01), function(i) datExpr %>% mergeCloseModules(colors = dynamicColors, cutHeight = i, verbose = 3) %>% .[["colors"]] %>% table() %>% length()) %>% unlist()
+# estimated_cut <- estimate_threshold_cut(thresh_cut = seq(from = 0.01, to = 1.0, by = 0.01), datExpr = datExpr, dynamicColors = dynamicColors, gene_names = datExpr %>% colnames(), TOM = TOM)
+# estimated_cut %>% plot
 # 
-# for (i in 1:length(MEDissThrestest)){
-#   mergetest[i] = mergeCloseModules(datExpr, dynamicColors, cutHeight = MEDissThrestest[i], verbose = 3)
-#   mergetesttablelength[i] = length(table(mergetest[i]))
-# }
-
-# plot(MEDissThrestest, mergetesttablelength)
-
-#which(MEDiss <MEDissThres)
-#MEDiss[which(MEDiss <MEDissThres)]
+# mergetest_list <- map(seq(from = 0.05, to = 0.50, by = 0.01), function(i) datExpr %>% mergeCloseModules(colors = dynamicColors, cutHeight = i, verbose = 3) %>% .[["colors"]])
+# 
+# mergetest <- mergetest_list %>% map(table) %>% map(length) %>% unlist
+# 
+# mergetest_1 <- map(seq_along(mergetest_list) , function(i) data.frame(dynamicColors = mergetest_list[[i]], genes = rownames(adjacency)) )
+# 
+# merge_blockstest <- map(seq_along(mergetest_1), function(i) mergetest_1[[i]] %>% split(f = .$dynamicColors) %>% map(dplyr::select, -dynamicColors) %>% map(pull))
+# 
+# gene_names <- datExpr %>% colnames()
+# inModule_merge_test <- map(seq_along(merge_blockstest), function(i) map(seq_along(merge_blockstest[[i]]), function(j) gene_names %in% merge_blockstest[[i]][[j]] ) )
+# 
+# # Select the corresponding Topological Overlap
+# modTOM_merge_test <- map(seq_along(inModule_merge_test), function(i) map(seq_along(inModule_merge_test[[i]]), function(j) TOM[inModule_merge_test[[i]][[j]], inModule_merge_test[[i]][[j]]]))
+# 
+# for (i in 1:length(modTOM_merge_test)) { for (j in 1:length(modTOM_merge_test[[i]])) {dimnames(modTOM_merge_test[[i]][[j]]) <- list(merge_blockstest[[i]][[j]], merge_blockstest[[i]][[j]]) } }
+# 
+# # Function to calculate the sum of squared deviations (from the mean)
+# ssd <- function(x) sum((x-mean(x))^2)
+# 
+# SSD_merge <- map(seq_along(modTOM_merge_test), function(i) map(seq_along(modTOM_merge_test[[i]]), function(j) modTOM_merge_test[[i]][[j]] %>% ssd())) %>% map(unlist) %>% map(sum) %>% unlist()
+# 
+# 
+# mergetest_df <- data.frame(cor_thres = seq(from = 0.05, to=0.50, by=0.01), 
+#                            n_modules = mergetest,
+#                            SSD_merge = SSD_merge)
+# 
+# mergetest_df %>% ggplot(aes(x = n_modules, y = SSD_merge)) + geom_line() + geom_point() + theme_bw()
+# 
+# mergetest_df %>% ggplot(aes(x = cor_thres, y = SSD_merge)) + geom_line() + geom_point() + theme_bw()
+# 
+# ploty_line <- mergetest_df %>% plot_ly(x = ~cor_thres, y = ~n_modules, z = ~SSD_merge, type = 'scatter3d', mode = 'lines', opacity = 1, line = list(width = 6, color = ~color, reverscale = FALSE))
+# 
+# Sys.setenv("plotly_username" = "kdutrufen")
+# api_create(ploty_line, filename = "ploty_line")
+# 
+# 
+# chart_link = api_create(ploty_line, filename="line3d-color")
+# 
+# 
+# 
+# MEDissThres <- 0.22
 ```
 
 # Plot the cut line into the dendrogram
 ```{r, fig.width=7, fig.height=7}
-plot(METree, main = "Clusterização de autogenes dos módulos", ylab = "Altura", xlab = "", sub = "", cex.lab=1.5, cex.main=1.5)
-MEDissThres = 0.25
-axis(side=2, at = c(0.0, 0.2, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.2), labels = format(c(0.0, 0.2, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.2), decimal.mark=","))
-abline(h=MEDissThres, col = "red")
+plot(METree, main = "Clusterização de autogenes dos módulos", ylab = "Altura", xlab = "", sub = "", cex.lab = 1.5, cex.main = 1.5)
+MEDissThres <- 0.25
+axis(side = 2, at = c(0.0, 0.2, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.2), labels = format(c(0.0, 0.2, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.2), decimal.mark = ","))
+abline(h = MEDissThres, col = "red")
 ```
 
 # Call an automatic merging function
 ```{r}
-merge = mergeCloseModules(datExpr, dynamicColors, cutHeight = MEDissThres, verbose = 3)
+merge <- datExpr %>% mergeCloseModules(dynamicColors, cutHeight = MEDissThres, verbose = 3)
 ```
 
 ```{r}
@@ -506,17 +742,17 @@ merge$newMEs
 
 # The merged module colors
 ```{r}
-mergedColors = merge$colors;
+mergedColors <- merge$colors
 ```
 
 # Eigengenes of the new merged modules:
 ```{r}
-mergedMEs = merge$newMEs;
+mergedMEs <- merge$newMEs
 ```
 
 # plot the gene dendrogram again, with the original and merged module colors underneath
 ```{r, fig.width=7, fig.height=7}
-plotDendroAndColors(geneTree, cbind(dynamicColors, mergedColors), c("Dynamic Tree Cut", "Merged dynamic"), ylab = "Altura", dendroLabels = FALSE, cex.lab=1.5, hang = 0.03, addGuide = TRUE, guideHang = 0.05)
+geneTree %>% plotDendroAndColors(cbind(dynamicColors, mergedColors), c("Dynamic Tree Cut", "Merged dynamic"), ylab = "Altura", dendroLabels = FALSE, cex.lab=1.5, hang = 0.03, addGuide = TRUE, guideHang = 0.05)
 #axis(side=2, at = c(0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0), labels = format(c(0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0), decimal.mark=","))
 ```
 
@@ -524,32 +760,26 @@ plotDendroAndColors(geneTree, cbind(dynamicColors, mergedColors), c("Dynamic Tre
 ```{r}
 ## We save the relevant variables for use in subsequent steps
 # Rename to moduleColors
-moduleColors = mergedColors
-table(moduleColors)
+moduleColors <- mergedColors
+moduleColors %>% table() %>% as.data.frame  %>% write.table(file = "~/Dropbox/Hib_Data/Hib_WGCNA_Modulesxn_Genes.tsv", sep="\t", row.names = FALSE, col.names = TRUE, quote = FALSE )
 ```
 
 # Construct numerical labels corresponding to the colors
 ```{r}
-colorOrder = c("grey", standardColors(50))
-moduleLabels = match(moduleColors, colorOrder)-1
-MEs = mergedMEs
+colorOrder <- c("grey", standardColors(50))
+moduleLabels <- match(moduleColors, colorOrder) - 1
+MEs <- mergedMEs
 ```
 
-# Gene ID in each module
+# Genes in each module
 ```{r}
-moduleColors1 = as.matrix(moduleColors)
-rownames(moduleColors1) = colnames(datExpr)
-moduleblocks = vector(mode = "list", length = length(merge$newMEs)) # length(merge$newMEs) ? n?mero de clusters encontrados
-for (i in 1:length(merge$newMEs)){moduleblocks[[i]] = as.matrix(moduleColors1[which(moduleColors1==gsub("ME","",names(merge$newMEs)[i])),1])} # genes de cada cor id de cluster fica armazenado em vetor diferente da lista; gsub para retirar as letras ME do id da cor do m?dulo
-
-#for(i in 1:length(merge$newMEs)){print(rownames(moduleblocks[[i]]))} # quais genes est?o em cada cluster
-
+dynamicColors2 <- data.frame(dynamicColors = moduleColors, genes = rownames(adjacency))
+moduleblocks <- dynamicColors2 %>% split(f = .$dynamicColors) %>% map(dplyr::select, -dynamicColors) %>% map(pull)
 ```
-
 
 # Plot the dendrogram and colors underneath
 ```{r, fig.width=7, fig.height=7}
-plotDendroAndColors(geneTree, dynamicColors, "Dynamic Tree Cut", dendroLabels = FALSE, hang = 0.03, addGuide = TRUE, guideHang = 0.05, main = "Dendograma dos genes e cores dos m?dulos", ylab="Altura", cex.main = 1.5, cex.lab = 1.5)
+geneTree %>% plotDendroAndColors(dynamicColors, "Dynamic Tree Cut", dendroLabels = FALSE, hang = 0.03, addGuide = TRUE, guideHang = 0.05, main = "Dendograma dos genes e cores dos m?dulos", ylab="Altura", cex.main = 1.5, cex.lab = 1.5)
 ```
 
 
@@ -558,21 +788,21 @@ plotDendroAndColors(geneTree, dynamicColors, "Dynamic Tree Cut", dendroLabels = 
 # Relating modules and module eigengenes to external data
 ```{r}
 # how related the modules are
-datME=moduleEigengenes(datExpr,moduleColors)$eigengenes
-signif(cor(datME, use="p"), 2)
+datME <- datExpr %>% moduleEigengenes(moduleColors) %>% .[["eigengenes"]]
+datME %>% cor(use = "p") %>% signif(digits = 2)
 ```
 
 # We define a dissimilarity measure between the module eigengenes  that keeps track of the sign of the correlation between the module eigengenes, and use it to cluster the eigengene
 ```{r, fig.width=7, fig.height=7}
-dissimME=(1-t(cor(datME, method="p")))/2
-hclustdatME=hclust(as.dist(dissimME), method="average" )
+dissimME <- (1 - t(cor(datME, method = "p"))) / 2
+hclustdatME <- dissimME %>% as.dist() %>% hclust(method = "average")
 # Plot the eigengene dendrogram
-sizeGrWindow(6,6)
+sizeGrWindow(6, 6)
 par(cex = 1.0)
-plot(hclustdatME, main="?rvore de clusteriza??o baseada nos atugenes dos m?dulos", xlab="Altura")
-#axis = axis(side=2, at = c(0.2, 0.4, 0.6, 0.8, 1.0, 1.2), labels = format(c(0.2, 0.4, 0.6, 0.8, 1.0, 1.2), decimal.mark=","))
+plot(hclustdatME, main = "?rvore de clusteriza??o baseada nos atugenes dos m?dulos", xlab = "Altura")
+# axis = axis(side=2, at = c(0.2, 0.4, 0.6, 0.8, 1.0, 1.2), labels = format(c(0.2, 0.4, 0.6, 0.8, 1.0, 1.2), decimal.mark=","))
 par(cex = 1.0)
-plotEigengeneNetworks(datME, "", marDendro = c(0,4,1,2), marHeatmap = c(3,4,1,2), cex.lab = 0.8, xLabelsAngle= 90)
+plotEigengeneNetworks(datME, "", marDendro = c(0, 4, 1, 2), marHeatmap = c(3, 4, 1, 2), cex.lab = 0.8, xLabelsAngle = 90)
 # , axis = axis(side=4, at = c(0, 0.2,  0.4, 0.6, 0.8, 1), labels = format(c(0, 0.2,  0.4, 0.6, 0.8, 1), decimal.mark=","))
 ```
 
@@ -586,11 +816,11 @@ plotEigengeneNetworks(datME, "", marDendro = c(0,4,1,2), marHeatmap = c(3,4,1,2)
 # Setting the diagonal to NA also improves the clarity of the plot
 
 # Transform dissTOM with a power to make moderately strong connections more visible in the heatmap
-plotTOM = dissTOM^7
-
-diag(plotTOM) = NA
-
-TOMplot(plotTOM, geneTree, mergedColors)
+# plotTOM <- dissTOM^7
+# 
+# diag(plotTOM) <- NA
+# 
+# TOMplot(plotTOM, geneTree, mergedColors)
 ```
 
 # MDS plot
@@ -598,60 +828,23 @@ TOMplot(plotTOM, geneTree, mergedColors)
 # multidimensional scaling
 # Classical multidimensional scaling (MDS) of a data matrix. Also known as principal coordinates analysis
 
-cmd1=cmdscale(as.dist(dissTOM),2)
-par(mfrow=c(1,1))
-plot(cmd1, col=as.character(mergedColors), main="MDS plot",xlab="Scaling
-Dimension 1",ylab="Scaling Dimension 2", cex.axis=1.5,cex.lab=1.5, cex.main=1.5)
+# cmd1 <- dissTOM %>% as.dist() %>% cmdscale(2)
+# par(mfrow = c(1, 1))
+# cmd1 %>% plot(col = as.character(mergedColors), main = "MDS plot", xlab = "Scaling Dimension 1", ylab = "Scaling Dimension 2", cex.axis = 1.5, cex.lab = 1.5, cex.main = 1.5)
 ```
 
 
 # Diagnostics: heatmap plots of module expression
 ```{r}
-which.module=list()
-for (i in 1:length(merge$newMEs)){which.module[[i]] = gsub("ME","",names(merge$newMEs)[i])}
+which.module <- merge %>% .[["newMEs"]] %>% names() %>% gsub(pattern = "ME", replacement = "")
+which.module_ME <- merge %>% .[["newMEs"]] %>% names()
+ME <- map(seq_along(datME), function(i) datME %>% dplyr::select(which.module_ME[i])) %>% map(pull)
 
-ME=list()
-for (i in 1:length(which.module)){ME[[i]] = datME[, paste("ME",which.module[[i]], sep="")]}
-```
-
-# Diagnostics: barplots of eigengene module expression
-```{r, fig.width=7, fig.height=7}
-meanME = list()
-for (i in 1:length(which.module)){meanME[[i]] = as.vector(rbind(mean(ME[[i]][HibDesign1$condition=="S01"]), mean(ME[[i]][HibDesign1$condition=="S02"]), mean(ME[[i]][HibDesign1$condition=="S03"]), mean(ME[[i]][HibDesign1$condition=="S04"]), mean(ME[[i]][HibDesign1$condition=="S05"]),  mean(ME[[i]][HibDesign1$condition=="S06"])))}
-
-sdME = list()
-for (i in 1:length(which.module)){sdME[[i]] = as.vector(rbind(sd(ME[[i]][HibDesign1$condition=="S01"]), sd(ME[[i]][HibDesign1$condition=="S02"]), sd(ME[[i]][HibDesign1$condition=="S03"]), sd(ME[[i]][HibDesign1$condition=="S04"]), sd(ME[[i]][HibDesign1$condition=="S05"]),  sd(ME[[i]][HibDesign1$condition=="S06"])))}
-
-library(plotrix)
-std.errorME = list()
-for (i in 1:length(which.module)){std.errorME[[i]] = as.vector(rbind(std.error(ME[[i]][HibDesign1$condition=="S01"]), std.error(ME[[i]][HibDesign1$condition=="S02"]), std.error(ME[[i]][HibDesign1$condition=="S03"]), std.error(ME[[i]][HibDesign1$condition=="S04"]), std.error(ME[[i]][HibDesign1$condition=="S05"]),  std.error(ME[[i]][HibDesign1$condition=="S06"])))}
-
-# main=paste0("Expressão do autogene \n do módulo ", which.module[[i]])
-# par(mar=c(6,6,3,3),cex.axis=1.5,cex.lab=1.2)
-par(mfrow=c(3,3), mar=c(5.1,4.1,4.1,2.1), cex.axis=1.5,cex.lab=1.2)
-
-for (i in 1:length(which.module)){
-
-MEbarplot = barplot(meanME[[i]], col=which.module[[i]], main="", cex.main=1.2, cex.lab = 1.5, ylab="Eigengene expression",xlab="Samples", ylim=c(-0.7,0.7))
-abline(h=0, col="black")
-arrows(MEbarplot,meanME[[i]] - std.errorME[[i]], MEbarplot,
-       meanME[[i]] + std.errorME[[i]], lwd = 1.5, angle = 90,
-       code = 3, length = 0.05)
-}
-```
-
-# Diagnostics: heatmap plots of module expression
-```{r, fig.width=7, fig.height=7}
 # We now create a heatmap plots of module expressions.
 
 #library("gridExtra")
 #grid.arrange(plot1, plot2, ncol=2)
 
-which.module=list()
-for (i in 1:length(merge$newMEs)){which.module[[i]] = gsub("ME","",names(merge$newMEs)[i])}
-
-ME=list()
-for (i in 1:length(which.module)){ME[[i]] = datME[, paste("ME",which.module[[i]], sep="")]}
 
 # par(mfrow=c(2,2), mar=c(1, 2, 4, 1))
 # for (i in 1:length(which.module)){
@@ -659,9 +852,46 @@ for (i in 1:length(which.module)){ME[[i]] = datME[, paste("ME",which.module[[i]]
 # }
 ```
 
+# Diagnostics: barplots of eigengene module expression
+```{r, fig.width=7, fig.height=7}
+# meanME <-
+
+# ME %>% .[[1]] %>% (HibDesign$condition=="S01")
+
+meanME <- list()
+for (i in 1:length(which.module)) {
+  meanME[[i]] <- as.vector(rbind(mean(ME[[i]][HibDesign$condition == "S01"]), mean(ME[[i]][HibDesign$condition == "S02"]), mean(ME[[i]][HibDesign$condition == "S03"]), mean(ME[[i]][HibDesign$condition == "S04"]), mean(ME[[i]][HibDesign$condition == "S05"]), mean(ME[[i]][HibDesign$condition == "S06"])))
+}
+
+sdME <- list()
+for (i in 1:length(which.module)) {
+  sdME[[i]] <- as.vector(rbind(sd(ME[[i]][HibDesign$condition == "S01"]), sd(ME[[i]][HibDesign$condition == "S02"]), sd(ME[[i]][HibDesign$condition == "S03"]), sd(ME[[i]][HibDesign$condition == "S04"]), sd(ME[[i]][HibDesign$condition == "S05"]), sd(ME[[i]][HibDesign$condition == "S06"])))
+}
+
+library(plotrix)
+std.errorME <- list()
+for (i in 1:length(which.module)) {
+  std.errorME[[i]] <- as.vector(rbind(std.error(ME[[i]][HibDesign$condition == "S01"]), std.error(ME[[i]][HibDesign$condition == "S02"]), std.error(ME[[i]][HibDesign$condition == "S03"]), std.error(ME[[i]][HibDesign$condition == "S04"]), std.error(ME[[i]][HibDesign$condition == "S05"]), std.error(ME[[i]][HibDesign$condition == "S06"])))
+}
+
+# main=paste0("Expressão do autogene \n do módulo ", which.module[[i]])
+# par(mar=c(6,6,3,3),cex.axis=1.5,cex.lab=1.2)
+par(mfrow = c(3, 3), mar = c(5.1, 4.1, 4.1, 2.1), cex.axis = 1.5, cex.lab = 1.2)
+
+for (i in 1:length(which.module)) {
+  MEbarplot <- barplot(meanME[[i]], col = which.module[[i]], main = "", cex.main = 1.2, cex.lab = 1.5, ylab = "Eigengene expression", xlab = "Samples", ylim = c(-0.7, 0.7))
+  abline(h = 0, col = "black")
+  arrows(MEbarplot, meanME[[i]] - std.errorME[[i]], MEbarplot,
+    meanME[[i]] + std.errorME[[i]],
+    lwd = 1.5, angle = 90,
+    code = 3, length = 0.05
+  )
+}
+```
+
 # Diagnostics: displaying module eigengenes line plots
 ```{r, fig.width=7, fig.height=7}
-scaled = t(scale(datExpr))
+scaled = datExpr %>% scale() %>% t()
 ```
 
 # Diagnostics: displaying module heatmap and the eigengene
@@ -702,39 +932,44 @@ scaled = t(scale(datExpr))
 # Diagnostics: displaying module eigengenes line plots
 ```{r, fig.width=7, fig.height=7}
 #par(mfrow=c(3,3), mar=c(0.3, 5.5, 3, 2))
-par(mar=c(5, 4.2, 0, 0.7))
-
-min_y = min(unlist(lapply(ME,FUN=min,na.rm=TRUE)))
-max_y = max(unlist(lapply(ME,FUN=max,na.rm=TRUE)))
-
-plot(1:24, ME[[1]], col=which.module[[1]], type="l", main="", cex.main=2, ylab="Expressão do autogene",xlab="Amostra",xlim=c(0,24), ylim=c(min_y, max_y))
-for (i in 2:length(which.module)){lines(1:24, ME[[i]], col=which.module[[i]])}
-legend("topright", max_y, legend = c(which.module[[1]], which.module[[2]], which.module[[3]], which.module[[4]], which.module[[5]], which.module[[6]], which.module[[7]], which.module[[8]], which.module[[9]]), cex=0.5, col=c(which.module[[1]], which.module[[2]], which.module[[3]], which.module[[4]], which.module[[5]], which.module[[6]], which.module[[7]], which.module[[8]], which.module[[9]]), lty=1)
+# par(mar=c(5, 4.2, 0, 0.7))
+# 
+# min_y = min(unlist(lapply(ME,FUN=min,na.rm=TRUE)))
+# max_y = max(unlist(lapply(ME,FUN=max,na.rm=TRUE)))
+# 
+# plot(1:23, ME[[1]], col=which.module[[1]], type="l", main="", cex.main=2, ylab="Expressão do autogene",xlab="Amostra",xlim=c(0,24), ylim=c(min_y, max_y))
+# for (i in 2:length(which.module)){lines(1:23, ME[[i]], col=which.module[[i]])}
+# legend("topright", max_y, legend = c(which.module[[1]], which.module[[2]], which.module[[3]], which.module[[4]], which.module[[5]], which.module[[6]], which.module[[7]], which.module[[8]], which.module[[9]]), cex=0.5, col=c(which.module[[1]], which.module[[2]], which.module[[3]], which.module[[4]], which.module[[5]], which.module[[6]], which.module[[7]], which.module[[8]], which.module[[9]]), lty=1)
 ```
 
 # The next logical step in an analysis of empirical data would be to carry out a functional enrichment analysis of each module
 
 # Clusterprofiler
 # KEGG over-representation test
+# KEGG Enrichment Analysis of a gene set. Given a vector of genes, this function will return the enrichment KEGG categories with FDR control.
 ```{r, message=FALSE}
-library("clusterProfiler")
-# KEGG Enrichment Analysis of a gene set. Given a vector of genes, this function will return the enrichment KEGG categories with FDR control.
+# names(modules_genes_Hib) = c(paste0("M",1:(length(modules)-1)))
+# modules_genes_Hib$Not.Correlated = modules_genes_Hib[[length(modules_genes_Hib)]]
+modules <- moduleblocks
+modules_genes_Hib <- moduleblocks %>% purrr::set_names(paste0("M",1:(length(modules))))
 
-modules = modules_genes_Hib = list()
-# for (i in 1:length(moduleblocks)){modules[[i]] = rownames(moduleblocks[[i]])}
-modules = modules_genes_Hib = lapply(moduleblocks, print(rownames))
-names(modules) = which.module
-names(modules_genes_Hib) = c(paste0("M",1:(length(modules)-1)))
-modules_genes_Hib$Not.Correlated = modules_genes_Hib[[length(modules_genes_Hib)]]
+Modules_KEGG_enrcihemnt <- modules_genes_Hib %>% compareCluster(fun = "enrichKEGG", organism = "hiu", pvalueCutoff = 1)
 
-# modules1 = list(Brown=modules[[1]], Black=modules[[2]], Purple=modules[[3]], Blue=modules[[4]], Red=modules[[5]], Magenta=modules[[6]], Green=modules[[7]], Pink=modules[[8]])
+Modules_KEGG_enrcihemnt@compareClusterResult <- Modules_KEGG_enrcihemnt@compareClusterResult %>% 
+  mutate(pvalue = pvalue %>% formattable::scientific(digits = 2, format = "e"),
+         p.adjust = p.adjust %>% formattable::scientific(digits = 2, format = "e"),
+         qvalue = qvalue %>% formattable::scientific(digits = 2, format = "e"))
 
-# KEGG Enrichment Analysis of a gene set. Given a vector of genes, this function will return the enrichment KEGG categories with FDR control.
-kk = compareCluster(modules_genes_Hib, fun="enrichKEGG", organism = 'hiu', pvalueCutoff=0.05)
-modulesenrichKEGG = data.frame(kk)
+Modules_KEGG_enrcihemnt@compareClusterResult <- Modules_KEGG_enrcihemnt@compareClusterResult %>% filter(p.adjust < 0.05) %>% filter(Count > 2)
+Modules_KEGG_enrcihemnt_df = Modules_KEGG_enrcihemnt %>% as.data.frame()
 
+# Modules_KEGG_enrcihemnt_df %>% write.table(file = "~/Dropbox/Hib_Data/Hib_WGCNA_clusterProfiler_Modules_enrichment.tsv", sep="\t", row.names = FALSE, col.names = TRUE, quote = FALSE )
+
+```
+
+```{r}
 mar=c(5.1,4.1,4.1,2.1)
-plot(kk, type="dot", font.size = 10, includeAll=TRUE, showCategory=100)
+Modules_KEGG_enrcihemnt %>% dotplot(font.size = 10, includeAll=TRUE, showCategory=100)
 ```
 
 # Classify DE genes into modules
@@ -754,87 +989,72 @@ plot(kk, type="dot", font.size = 10, includeAll=TRUE, showCategory=100)
 
 # Boxplots
 ```{r}
-par(mfrow=c(1,1), mar=c(5.1,4.1,4.1,2.1)+2, cex.axis=1,cex.lab=1)
-# interesting_genhes = c("ENSG00000151892", "ENSG00000134352", "ENSG00000174600")
-
-# interesting_genhes = modules[[1]]
-interesting_genhes = c("HIB_11790", "HIB_11640", "HIB_11800", "HIB_11650", "HIB_11850", "HIB_11860", "HIB_11710", "HIB_11870", "HIB_11720", "HIB_11730", "HIB_11810", "HIB_11660", "HIB_11820", "HIB_11670", "HIB_11680", "HIB_11830", "HIB_11840", "HIB_11690", "HIB_10030", "HIB_11840", "HIB_11690")
-
-# interesting_genhes = c("HIB_11840", "HIB_11830", "HIB_11820", "HIB_11810", "H733_0475", "NODE_366_length_1546_cov_11610.5_g324_i0", "NODE_6936_length_110_cov_38768_g6866_i0", "NODE_7424_length_88_cov_880582_g7354_i0", "NODE_3781_length_176_cov_36.7355_g3711_i0", "NODE_5701_length_126_cov_25505.4_g5631_i0")
-
-
-# interesting_genhes = c("HIB_11840", "HIB_11830", "HIB_11820", "HIB_11810")
-
-df = cpm(countData)
-# df = cpm(Elder_countData)
-df = df[c(interesting_genhes),]
-
-for (i in 1:nrow(df)){
-boxplot(df[i,]~HibDesign1$condition, las=2, ylab ="", xlab ="", col=c("blue", "red", "green", "orange", "purple"), main=interesting_genhes[i])
-mtext("Samples", side = 1, line = 5.5)
-mtext("Normalized Gene Expression (cpm)", side = 2, line = 4)
-}
+# genes <- Modules_KEGG_enrcihemnt_df %>% get_genes_from_pathways(pathway = "Citrate cycle (TCA cycle)", comparison = "M9")
+# 
+# set2$normalizedCounts %>% plot_genes_boxplot(genes = genes, design = HibDesign$condition, levels = c("S01", "S02", "S03", "S04", "S05", "S06"), converter = RefSeq_gff.genes, convert_from = "OldLocusTag", convert_to = "product")
 ```
 
 # Boxplots
 ```{r}
-library(STRINGdb)
-
-
+# library(STRINGdb)
 ```
 
 # Hubs
 ```{r, message=FALSE}
 # # code adapted from https://labs.genetics.ucla.edu/horvath/CoexpressionNetwork/Rpackages/WGCNA/Tutorials/FemaleLiver-06-ExportNetwork.pdf
-# nTop = 100
-# gene_names = colnames(datExpr)
-# 
-# module = vector(mode = "list", length = length(moduleblocks))
-# for (i in 1:length(moduleblocks)){module[[i]] = which.module[[i]]}
-# 
-# inModule = vector(mode = "list", length = length(moduleblocks))
-# for (i in 1:length(moduleblocks)){inModule[[i]] = (moduleColors==module[[i]])}
-# 
-# modGenes = vector(mode = "list", length = length(moduleblocks))
-# for (i in 1:length(moduleblocks)){modGenes[[i]] = gene_names[inModule[[i]]]}
-# 
-# #Select the corresponding Topological Overlap
-# modTOM = vector(mode = "list", length = length(moduleblocks))
-# for (i in 1:length(moduleblocks)){modTOM[[i]] = TOM[inModule[[i]], inModule[[i]]]}
-# for (i in 1:length(moduleblocks)){dimnames(modTOM[[i]]) = list(modGenes[[i]], modGenes[[i]])}
-# 
-# # Given expression data or a similarity, the function softConnectivity() constructs the adjacency matrix and for each node calculates its connectivity, that is the sum of the adjacency to the other nodes
-# # softConnectivity() returns a vector with one entry per gene giving the connectivity of each gene in the weighted network.
-# IMConn = vector(mode = "list", length = length(moduleblocks))
-# for (i in 1:length(moduleblocks)){IMConn[[i]] =  softConnectivity(datExpr[, modGenes[[i]]])}
-# 
-# for (i in 1:length(moduleblocks)){
-#   for (j in 1:length(IMConn)){
-#     if (identical(length(IMConn[[j]]), length(moduleblocks[[i]]))==TRUE){
-#       names(IMConn[[j]]) = rownames(moduleblocks[[i]])
-#     }
-#   }
+nTop <- 100
+gene_names <- datExpr %>% colnames()
+inModule <- map(seq_along(moduleblocks), function(i) gene_names %in% moduleblocks[[i]] )
+# Select the corresponding Topological Overlap
+modTOM <- map(seq_along(moduleblocks), function(i) TOM[inModule[[i]], inModule[[i]]] )
+for (i in 1:length(moduleblocks)) { dimnames(modTOM[[i]]) <- list(moduleblocks[[i]], moduleblocks[[i]]) }
+
+# Given expression data or a similarity, the function softConnectivity() constructs the adjacency matrix and for each node calculates its connectivity, that is the sum of the adjacency to the other nodes
+# softConnectivity() returns a vector with one entry per gene giving the connectivity of each gene in the weighted network.
+
+IMConn <- map(seq_along(moduleblocks), function(i) datExpr %>% as.data.frame %>% dplyr::select( c(moduleblocks[[i]])) %>% softConnectivity ) %>% map2(moduleblocks, purrr::set_names)
+
+genes <- c("HIB_10030", "HIB_11690", "HIB_11840", "HIB_11830", "HIB_11680", "HIB_11670", "HIB_11820", "HIB_11660", "HIB_11810")
+
+# top <- vector(mode = "list", length = length(moduleblocks))
+# for (i in 1:length(moduleblocks)) {
+#   top[[i]] <- (rank(-IMConn[[i]]) <= nTop)
 # }
-# 
-# IMConn[[4]]["HIB_10030"]
-# IMConn[[4]]["HIB_11690"]
-# IMConn[[4]]["HIB_11840"]
-# IMConn[[4]]["HIB_11830"]
-# IMConn[[4]]["HIB_11680"]
-# IMConn[[4]]["HIB_11670"]
-# IMConn[[4]]["HIB_11820"]
-# IMConn[[4]]["HIB_11660"]
-# IMConn[[4]]["HIB_11810"]
-# 
-# top  = vector(mode = "list", length = length(moduleblocks))
-# for (i in 1:length(moduleblocks)){top[[i]] = (rank(-IMConn[[i]]) <= nTop)}
 ```
 
+# Intramodular Connectivity
+```{r}
+# Calculates intramodular connectivity, i.e., connectivity of nodes to other nodes within the same module
 
+# Returns a data frame with 4 columns giving:
+# kTotal = the total connectivity, 
+# kWithin = intramodular connectivity,
+# kOut = extra-modular connectivity, and 
+# kDiff = the difference of the intra and extra-modular connectivities for all genes
+
+Alldegrees <- intramodularConnectivity(adjacency, moduleColors)
+Alldegrees <- Alldegrees %>% rownames_to_column() %>% mutate_if(is.numeric, ~round(., digits = 2)) %>% column_to_rownames()
+
+Hubness_by_module <- map(seq_along(moduleblocks), function(i) Alldegrees[moduleblocks[[i]],] ) %>% purrr::set_names(moduleblocks %>% names) %>% map(rownames_to_column) %>% map(arrange, -kTotal) %>% bind_rows(.id = "column_label")
+
+Hubness_by_module %>% write.table(file = paste0("~/Dropbox/Hib_Data/Hib_WGCNA_Module_Hubs.tsv"), sep="\t", row.names = FALSE, col.names = TRUE, quote = FALSE)
+
+# map(seq_along(Hubness_by_module), function(i) Hubness_by_module[[i]] %>% write.table(file = paste0("~/Dropbox/Hib_Data/Hib_WGCNA_Module_", names(Hubness_by_module)[i],"_Hubs.tsv"), sep="\t", row.names = FALSE, col.names = TRUE, quote = FALSE) )
+```
+
+# Generalizing intramodular connectivity for all genes
+```{r}
+# The intramodular connectivity measure is only defined for the genes inside a given module. 
+# But in practice it can be very important to measure how connected a given genes is to biologically interesting modules
+# We define a module eigengene-based connectivity measure for each gene as the correlation between a the gene expression and the module eigengene
+
+# We have a module membership value for each gene in each module
+datKME=signedKME(datExpr, datME, outputColumnName="MM.")
+head(datKME)
+```
 
 # Export data to Visant
 ```{r, message=FALSE}
-
 #datMEcor = signif(cor(datME, use="p"), 2)
 #exportNetworkToVisANT(datMEcor, file = "VisANTInput-eigengenes.txt", weighted = TRUE, threshold = 0)
 
@@ -875,82 +1095,86 @@ HibPP[[4]][,21] = c(0, -0.628, 0.050, 0.236, 0.207, 0.220, 0.516, 0.517, 0.829, 
 
 # All HibPP_Variables
 ```{r, message=FALSE}
-library(tidyverse)
-library(data.table)
+HibPP_Variables <- map(HibPP, function(df) {
+  df %>% dplyr::select(c(2, 9, 7, 13, 15, 11, 12, 21, 16)) %>%
+    purrr::set_names(c("EFT", "CO2", "O2", "Acetate", "PRP", "Biomass", "Glucose", "Glucose_consumption", "Molecular_mass")) %>%
+    mutate(
+      CO2 = CO2 %>% gsub(pattern = "%", replacement = "") %>% gsub(pattern = ",", replacement = ".", fixed = TRUE) %>% as.numeric,
+      O2 = O2 %>% gsub(pattern = "%", replacement = "") %>% gsub(pattern = ",", replacement = ".", fixed = TRUE) %>% as.numeric,
+      Delta_EFT = c(NA, diff(EFT)),
+      # Delta_CO2 = c(NA, diff(CO2)),
+      # Delta_O2 = c(NA, diff(O2)),
+      Delta_Acetate = c(NA, diff(Acetate)),
+      Delta_PRP = c(NA, diff(PRP)),
+      Delta_Biomass = c(NA, diff(Biomass)),
+      Delta_Glucose = c(NA, diff(Glucose)),
+      Delta_Glucose_consumption = c(NA, diff(Glucose_consumption)),
+      rx = Delta_Biomass / Delta_EFT, # Crescimento específico
+      rsG = Delta_Glucose_consumption / Delta_EFT, # velocidades instantaneas de consumo
+      rsPRP = Delta_PRP / Delta_EFT, # velocidades instantaneas de formacao de produto (PRP)
+      rsAc = Delta_Acetate / Delta_EFT, # velocidades instantaneas de formacao de produto (Ac)
+      Px = (Biomass - Biomass[2]) / EFT,
+      PpAc = (Acetate - Acetate[2]) / EFT, # produtividade do produto (Acetato)
+      PpPRP = (PRP - PRP[2]) / EFT, # produtividade do produto (PRP)
+      MiX = rx / Biomass, # velocidades especificas de crescimento
+      MiS = -1 * rsG / Biomass, # velocidades especificas de consumo de substrato
+      MiPAc = rsAc / Biomass, # velocidades especificas de formacao de produto (PRP)
+      MiPPRP = rsPRP / Biomass, # velocidades especificas de formacao de produto (PRP)
+      Yxs = -1 * Delta_Biomass / Delta_Glucose_consumption,
+      YxpAc = Delta_Biomass / Delta_Acetate,
+      YxpPRP = Delta_Biomass / Delta_PRP,
+      YpsAc = -1 * Delta_Acetate / Delta_Glucose_consumption,
+      YpsPRP = -1 * Delta_PRP / Delta_Glucose_consumption
+    )
+}) %>% purrr::set_names(c("B01", "B02", "B03", "B04"))
+HibPP_Variables <- map(seq_along(HibPP_Variables), function(i) HibPP_Variables[[i]] %>%
+    mutate(Batch = rep(paste0("B0", i), nrow(HibPP_Variables[[i]])), Time = paste0(0:21, "h"))) # Categorical values: Batch, Time
 
-HibPP_Variables = lapply(HibPP, function(df){ select(df, c(2,9,7,13,15,11,12,21,16)) %>%
-    set_names(c("EFT", "CO2", "O2", "Acetate", "PRP", "Biomass", "Glucose", "Glucose_consumption", "Molecular_mass")) %>%
-    mutate(CO2 = gsub("%", "", CO2), 
-           O2 = gsub("%", "", O2), 
-           CO2 = as.numeric(gsub(",", ".", CO2, fixed = TRUE)), 
-           O2 = as.numeric(sub(",", ".", O2, fixed = TRUE)), 
-           Delta_EFT = c(NA, diff(EFT)), 
-           #Delta_CO2 = c(NA, diff(CO2)), 
-           #Delta_O2 = c(NA, diff(O2)), 
-           Delta_Acetate = c(NA, diff(Acetate)), 
-           Delta_PRP = c(NA, diff(PRP)), 
-           Delta_Biomass = c(NA, diff(Biomass)), 
-           Delta_Glucose = c(NA, diff(Glucose)), 
-           Delta_Glucose_consumption = c(NA, diff(Glucose_consumption)), 
-           rx = Delta_Biomass/Delta_EFT, # Crescimento específico
-           rsG = Delta_Glucose_consumption/Delta_EFT,  # velocidades instantaneas de consumo
-           rsPRP = Delta_PRP/Delta_EFT, # velocidades instantaneas de formacao de produto (PRP)
-           rsAc = Delta_Acetate/Delta_EFT, # velocidades instantaneas de formacao de produto (Ac)
-           Px = (Biomass - Biomass[2])/EFT,
-           PpAc = (Acetate - Acetate[2])/EFT, # produtividade do produto (Acetato)
-           PpPRP = (PRP - PRP[2])/EFT, # produtividade do produto (PRP)
-           MiX = rx/Biomass, # velocidades especificas de crescimento
-           MiS = -1*rsG/Biomass, # velocidades especificas de consumo de substrato
-           MiPAc = rsAc/Biomass, # velocidades especificas de formacao de produto (PRP)
-           MiPPRP = rsPRP/Biomass, # velocidades especificas de formacao de produto (PRP)
-           Yxs = -1*Delta_Biomass/Delta_Glucose_consumption,
-           YxpAc = Delta_Biomass/Delta_Acetate,
-           YxpPRP = Delta_Biomass/Delta_PRP,
-           YpsAc = -1*Delta_Acetate/Delta_Glucose_consumption,
-           YpsPRP = -1*Delta_PRP/Delta_Glucose_consumption )
-    } )
-names(HibPP_Variables) = c("B01", "B02", "B03", "B04")
-HibPP_Variables = lapply(1:length(HibPP_Variables), function(i) HibPP_Variables[[i]] %>% mutate(Batch = rep(paste0("B0", i), nrow(HibPP_Variables[[i]]))) %>% mutate(Time = paste0(0:21, "h")) ) # Categorical values: Batch, Time
-
-library(plyr)
-HibPP_Variables = ldply(HibPP_Variables, data.frame)
+HibPP_Variables <- ldply(HibPP_Variables, data.frame)
 HibPP_Variables[HibPP_Variables == -Inf] <- NA
 
-HibPP_Variables = as_tibble(HibPP_Variables)
-HibPP_Variables$Time = factor(HibPP_Variables$Time, levels = c("0h",  "1h", "2h", "3h", "4h", "5h", "6h", "7h", "8h", "9h", "10h", "11h", "12h", "13h", "14h", "15h", "16h", "17h", "18h", "19h", "20h", "21h"))
-HibPP_Variables$Molecular_mass = as.numeric(HibPP_Variables$Molecular_mass)
-HibPP_Variables %>% melt %>% View()
+HibPP_Variables <- HibPP_Variables %>% as_tibble()
+HibPP_Variables <- HibPP_Variables %>% mutate(
+  Time = Time %>% factor(levels = c("0h", "1h", "2h", "3h", "4h", "5h", "6h", "7h", "8h", "9h", "10h", "11h", "12h", "13h", "14h", "15h", "16h", "17h", "18h", "19h", "20h", "21h")),
+  Molecular_mass = Molecular_mass %>% as.numeric()
+)
 
-HibPP_Variables %>% ggplot(aes(x = Time, y = PRP)) + geom_boxplot() + geom_jitter(aes(colour = Batch)) + theme_bw()
-HibPP_Variables %>% ggplot(aes(x = Time, y = Acetate)) + geom_boxplot() + geom_jitter(aes(colour = Batch)) + theme_bw()
-HibPP_Variables %>% ggplot(aes(x = Time, y = CO2)) + geom_boxplot() + geom_jitter(aes(colour = Batch)) + theme_bw()
-HibPP_Variables %>% ggplot(aes(x = Time, y = Biomass)) + geom_boxplot() + geom_jitter(aes(colour = Batch)) + theme_bw()
+HibPP_Variables_Samples <- HibPP_Variables %>% split(f = .$Batch) %>% map(dplyr::slice, points) %>% map(dplyr::select, -c(Batch, Time))
+HibPP_Variables_Vector <- ldply(HibPP_Variables_Samples, data.frame) %>% dplyr::select(-c(.id)) %>% as.list()
 
-HibPP_Variables_2_plot = list()
-HibPP_Variables_2_plot[[1]] = HibPP_Variables[,c(2:5,32:33) ]
-HibPP_Variables_2_plot[[2]] = HibPP_Variables[,c(6:9,32:33) ]
-HibPP_Variables_2_plot[[3]] = HibPP_Variables[,c(10:13,32:33) ]
-HibPP_Variables_2_plot[[4]] = HibPP_Variables[,c(14:17,32:33) ]
-HibPP_Variables_2_plot[[5]] = HibPP_Variables[,c(18:21,32:33) ]
-HibPP_Variables_2_plot[[6]] = HibPP_Variables[,c(22:25,32:33) ]
-HibPP_Variables_2_plot[[7]] = HibPP_Variables[,c(26:29,32:33) ]
-HibPP_Variables_2_plot[[8]] = HibPP_Variables[,c(30:31,32:33) ]
+# HibPP_Variables %>% melt() %>% View()
+# HibPP_Variables %>% ggplot(aes(x = Time, y = PRP)) + geom_boxplot() + geom_jitter(aes(colour = Batch)) + theme_bw()
+# HibPP_Variables %>% ggplot(aes(x = Time, y = Acetate)) + geom_boxplot() + geom_jitter(aes(colour = Batch)) + theme_bw()
+# HibPP_Variables %>% ggplot(aes(x = Time, y = CO2)) + geom_boxplot() + geom_jitter(aes(colour = Batch)) + theme_bw()
+# HibPP_Variables %>% ggplot(aes(x = Time, y = Biomass)) + geom_boxplot() + geom_jitter(aes(colour = Batch)) + theme_bw()
 
-HibPP_Variables_2_plot = lapply(HibPP_Variables_2_plot, melt)
+HibPP_Variables_2_plot <- list(
+  HibPP_Variables %>% dplyr::select(c(2:5, 32:33)),
+  HibPP_Variables %>% dplyr::select(c(6:9, 32:33)),
+  HibPP_Variables %>% dplyr::select(c(10:13, 32:33)),
+  HibPP_Variables %>% dplyr::select(c(14:17, 32:33)),
+  HibPP_Variables %>% dplyr::select(c(18:21, 32:33)),
+  HibPP_Variables %>% dplyr::select(c(22:25, 32:33)),
+  HibPP_Variables %>% dplyr::select(c(26:29, 32:33)),
+  HibPP_Variables %>% dplyr::select(c(30:31, 32:33))
+)
 
-lapply(HibPP_Variables_2_plot, function(x) ggplot(x, aes(x = Time, y = value)) + geom_boxplot() + geom_jitter(aes(colour = Batch)) + theme_bw() + facet_wrap(~variable, scales = "free", ncol = 1))
+HibPP_Variables_2_plot <- HibPP_Variables_2_plot %>% map(melt)
 
-HibPP_Variables_Samples = lapply(1:4, function(i){HibPP_Variables[[i]][points,]})
-HibPP_Variables_Vector = lapply(1:ncol(HibPP_Variables_Samples[[1]]), function(j) as.vector(sapply(1:4, function(i){cbind(HibPP_Variables_Samples[[i]][,j])})))
+HibPP_Variables_2_plot %>% map(function(x) ggplot(x, aes(x = Time, y = value)) + geom_boxplot() + geom_jitter(aes(colour = Batch)) + theme_bw() + facet_wrap(~variable, scales = "free", ncol = 1))
 
-lapply(HibPP_Variables_Samples, function(df){  c(mean(df[,-1]), var(df[,-1]), std.error(df[,-1])) })
+# HibPP_Variables_Vector <- map(1:ncol(HibPP_Variables_Samples[[1]]), function(j) as.vector(sapply(1:4, function(i) {
+#     cbind(HibPP_Variables_Samples[[i]][, j])
+#   })))
 
-library(plyr)
-library(plotrix)
-Mean_HibPP_Variables = aaply(laply(HibPP_Variables, as.matrix), c(2, 3), mean, na.rm= TRUE)
-SE_HibPP_Variables= aaply(laply(HibPP_Variables, as.matrix), c(2, 3), std.error, na.rm= TRUE)
-CI.up = Mean_HibPP_Variables+SE_HibPP_Variables
-CI.dn = Mean_HibPP_Variables-SE_HibPP_Variables
+map(HibPP_Variables_Samples, function(df) {
+  c(mean(df %>% dplyr::select(-EFT)), var(df %>% dplyr::select(-EFT)), std.error(df %>% dplyr::select(-EFT)))
+})
+
+Mean_HibPP_Variables <- aaply(laply(HibPP_Variables, as.matrix), c(2, 3), .fun = mean, na.rm = TRUE)
+SE_HibPP_Variables <- aaply(laply(HibPP_Variables, as.matrix), c(2, 3), .fun = std.error, na.rm = TRUE)
+CI.up <- Mean_HibPP_Variables + SE_HibPP_Variables
+CI.dn <- Mean_HibPP_Variables - SE_HibPP_Variables
 
 # HibPP_Variables = lapply(1:4, function(i){as.data.frame(cbind(HibPP[[i]][,2], HibPP[[i]][,9], HibPP[[i]][,7], HibPP[[i]][,13], HibPP[[i]][,15], HibPP[[i]][,11], HibPP[[i]][,12], HibPP[[i]][,21], HibPP[[i]][,16]))})
 # names(HibPP_Variables) = c("B01", "B02", "B03", "B04")
@@ -977,22 +1201,24 @@ CI.dn = Mean_HibPP_Variables-SE_HibPP_Variables
 
 # Plots
 ```{r}
-max_y = max(sapply(HibPP_Variables, function(x) max(x[,2]))) # Compute the largest y value used in the data
-# max(unlist(lapply(HibPP_Variables[[1]][,2],FUN=max,na.rm=TRUE))) 
-xmax = max(sapply(HibPP_Variables, function(x) max(x[,1]))) # Compute the largest x value used in the data
+max_y <- max(sapply(HibPP_Variables, function(x) max(x[, 2]))) # Compute the largest y value used in the data
+# max(unlist(lapply(HibPP_Variables[[1]][,2],FUN=max,na.rm=TRUE)))
+xmax <- max(sapply(HibPP_Variables, function(x) max(x[, 1]))) # Compute the largest x value used in the data
 # max(unlist(lapply(EFTv,FUN=max,na.rm=TRUE)))
-plot(HibPP_Variables[[1]][,1], HibPP_Variables[[1]][,2], type="o", pch=21, lty = 1, xlab="Time (h)", ylab=expression("[" ~ CO[2] ~ "] (%)"), main = expression( ~ CO[2] ~ "concentration during cultivation"), col = cores[1],  xlim=c(0, xmax), ylim=c(0, max_y))
-#box() # Create box around plot
-#lapply(2:4, function(i){lines(PRPv[[i]], type="o", pch=20+i, lty = i, col=rainbow(i))})
-for (i in 2:4){ lines(HibPP_Variables[[i]][,2], type="o", pch=20+i, lty = i, col=cores[i]) }
+plot(HibPP_Variables[[1]][, 1], HibPP_Variables[[1]][, 2], type = "o", pch = 21, lty = 1, xlab = "Time (h)", ylab = expression("[" ~ CO[2] ~ "] (%)"), main = expression(~ CO[2] ~ "concentration during cultivation"), col = cores[1], xlim = c(0, xmax), ylim = c(0, max_y))
+# box() # Create box around plot
+# lapply(2:4, function(i){lines(PRPv[[i]], type="o", pch=20+i, lty = i, col=rainbow(i))})
+for (i in 2:4) {
+  lines(HibPP_Variables[[i]][, 2], type = "o", pch = 20 + i, lty = i, col = cores[i])
+}
 # Create a legend at (1, max_y) that is slightly smaller (cex) and uses the same line colors and points used by the actual plots
-legend("bottomright", max_y, legend = c("B01", "B02", "B03", "B04"), cex=0.7, col=c(cores[1], cores[2], cores[3], cores[4]), pch=21:24, lty=1:4)
+legend("bottomright", max_y, legend = c("B01", "B02", "B03", "B04"), cex = 0.7, col = c(cores[1], cores[2], cores[3], cores[4]), pch = 21:24, lty = 1:4)
 
-par(mar=c(6,6,3,3),cex.axis=1.5,cex.lab=1.2)
-max_y = max(sapply(HibPP_Variables, function(x) max(x[,2]))) # Compute the largest y value used in the data
-xmax = max(sapply(HibPP_Variables, function(x) max(x[,1]))) # Compute the largest x value used in the data
-plot(Mean_HibPP_Variables[,1], Mean_HibPP_Variables[,2], type="o", pch=21, lty = 1, xlab="Time (h)", ylab=expression("[" ~ CO[2] ~ "] (%)"), main = expression(CO[2] ~ " Concentration during cultivation"), col = cores[1],  xlim=c(0, xmax), ylim=c(0, max_y))
-arrows(Mean_HibPP_Variables[,1],CI.dn[,2],Mean_HibPP_Variables[,1],CI.up[,2],code=3,length=0.1,angle=90,col='black')
+par(mar = c(6, 6, 3, 3), cex.axis = 1.5, cex.lab = 1.2)
+max_y <- max(sapply(HibPP_Variables, function(x) max(x[, 2]))) # Compute the largest y value used in the data
+xmax <- max(sapply(HibPP_Variables, function(x) max(x[, 1]))) # Compute the largest x value used in the data
+plot(Mean_HibPP_Variables[, 1], Mean_HibPP_Variables[, 2], type = "o", pch = 21, lty = 1, xlab = "Time (h)", ylab = expression("[" ~ CO[2] ~ "] (%)"), main = expression(CO[2] ~ " Concentration during cultivation"), col = cores[1], xlim = c(0, xmax), ylim = c(0, max_y))
+arrows(Mean_HibPP_Variables[, 1], CI.dn[, 2], Mean_HibPP_Variables[, 1], CI.up[, 2], code = 3, length = 0.1, angle = 90, col = "black")
 
 # library(ggplot2)
 # pd <- position_dodge(.3)
@@ -1001,27 +1227,92 @@ arrows(Mean_HibPP_Variables[,1],CI.dn[,2],Mean_HibPP_Variables[,1],CI.up[,2],cod
 
 # datTraits
 ```{r}
-nGenes = ncol(datExpr)
-nSamples = nrow(datExpr)
+nGenes <- datExpr %>% ncol()
+nSamples <- datExpr %>% nrow()
 
-datTraits = data.frame("Biomass" = HibPP_Variables_Vector$Biomass, "Acetate" = HibPP_Variables_Vector$Acetate, "Glucose" = HibPP_Variables_Vector$Glucose, "Consumed Glucose" = HibPP_Variables_Vector$Glucose_consumption, "PRP" = HibPP_Variables_Vector$PRP, "CO2" = HibPP_Variables_Vector$CO2, "Massa Molecular" = HibPP_Variables_Vector$Molecular_mass)
+# datTraits <- data.frame(
+#   "Biomass" = HibPP_Variables_Vector$Biomass,
+#   "Acetate" = HibPP_Variables_Vector$Acetate,
+#   "Glucose" = HibPP_Variables_Vector$Glucose,
+#   "Consumed Glucose" = HibPP_Variables_Vector$Glucose_consumption,
+#   "PRP" = HibPP_Variables_Vector$PRP,
+#   "CO2" = HibPP_Variables_Vector$CO2,
+#   "Massa Molecular" = HibPP_Variables_Vector$Molecular_mass
+# )
+
+datTraits <- data.frame(
+  "Massa Seca" = HibPP_Variables_Vector$Biomass,
+  "[Acetato]" = HibPP_Variables_Vector$Acetate,
+  "[Glicose]" = HibPP_Variables_Vector$Glucose,
+  "[Glicose Consumida]" = HibPP_Variables_Vector$Glucose_consumption,
+  "[PRP]" = HibPP_Variables_Vector$PRP,
+  "[CO2]" = HibPP_Variables_Vector$CO2,
+  "Massa Molecular" = HibPP_Variables_Vector$Molecular_mass,
+  "Crescimento Especifico" = HibPP_Variables_Vector$rx,
+  "Velocidade Instantanea de Consumo de Substrato" = HibPP_Variables_Vector$rsG,
+  "Velocidade Instantanea de Formacao de PRP" = HibPP_Variables_Vector$rsPRP,
+  "Velocidade Instantanea de Formacao de Acetato" = HibPP_Variables_Vector$rsAc,
+  "Velocidade Instantanea de Crescimento referente ao tempo" = HibPP_Variables_Vector$Px,
+  "Produtividade de PRP" = HibPP_Variables_Vector$PpPRP,
+  "Produtividade de Acetato" = HibPP_Variables_Vector$PpAc
+  # "Velocidade Especifica de Crescimento" = HibPP_Variables_Vector$MiX,
+  # "Velocidade Especifica de Consumo de Substrato" = HibPP_Variables_Vector$MiS,
+  # "Velocidade Especifica de Formacao de Acetato" = HibPP_Variables_Vector$MiPAc,
+  # "Velocidade Especifica de Formacao de PRP" = HibPP_Variables_Vector$MiPPRP,
+  # "Coeficiente Especifico de Biomassa-Glicose" = HibPP_Variables_Vector$Yxs,
+  # "Coeficiente Especifico de Biomassa-Acetato" = HibPP_Variables_Vector$YxpAc,
+  # "Coeficiente Especifico de Biomassa-PRP" = HibPP_Variables_Vector$YxpPRP,
+  # "Coeficiente Especifico de Acetato-Glicose" = HibPP_Variables_Vector$YpsAc,
+  # "Coeficiente Especifico de PRP-Glicose" = HibPP_Variables_Vector$YpsPRP
+)
+
+datTraits <- datTraits %>% dplyr::slice(-c(10))
 
 datTraits[datTraits == -Inf] <- NA
 
-moduleTraitCor = cor(MEs, datTraits, use = "pairwise.complete.obs")
+MEs_M <- MEs %>% purrr::set_names(paste0("M", 1:(length(modules))))
 
-moduleTraitPvalue = corPvalueStudent(moduleTraitCor, nSamples)
+moduleTraitCor <- cor(MEs_M, datTraits, use = "pairwise.complete.obs")
 
-#a suitable graphical representation will help in reading the table
+moduleTraitPvalue <- corPvalueStudent(moduleTraitCor, nSamples)
+
+# a suitable graphical representation will help in reading the table
 # We color code each association by the correlation value
 # Will display correlations and their p-values
 
-textMatrix = paste(signif(moduleTraitCor, 2), "\n(", signif(moduleTraitPvalue, 1), ")", sep = "")
+textMatrix <- paste(signif(moduleTraitCor, 2), "\n(", signif(moduleTraitPvalue, 1), ")", sep = "")
 
-xL=c("[Biomass]", "[Acetate]", "[Glucose]", "[Consumed Glucose]", "[PRP]", "[CO2]", "Massa Molecular")
-#par(mar = c(12, 5, 4, 2)+ 0.1)
-par(mar = c(6, 8.8, 3, 2.2)+2)
-labeledHeatmap(Matrix = moduleTraitCor, xLabels = xL, yLabels = names(MEs), ySymbols = names(MEs), colorLabels = FALSE, colors = blueWhiteRed(50), textMatrix = textMatrix, setStdMargins = FALSE, cex.text = 0.6, zlim = c(-1,1), main = paste("Kinetic parameters - Modules relationship"), xLabelsAngle = 90)
+xL <- c("[Biomass]", "[Acetate]", "[Glucose]", "[Consumed Glucose]", "[PRP]", "[CO2]", "Massa Molecular")
+
+xL <- c(
+  "Dry weight",
+  "[Acetate]",
+  "[Glucose]",
+  "[Glicose uptaken]", 
+  "[PRP]", 
+  "[CO2]", 
+  "Molecular Mass", 
+  "Specific Growth", 
+  "Instantaneous Substrate \n Consumption Speed", 
+  "Instantaneous PRP \n Production Speed", 
+  "Instantaneous Acetate \n Production Speed", 
+  "Instantaneous Growth Rate \n relative to time", 
+  "PRP Produtivity", 
+  "Acetate Produtivity"
+  # "Velocidade Especifica de Crescimento", 
+  # "Velocidade Especifica de Consumo de Substrato", 
+  # "Velocidade Especifica de Formacao de Acetato", 
+  # "Velocidade Especifica de Formacao de PRP", 
+  # "Coeficiente Especifico de Biomassa-Glicose", 
+  # "Coeficiente Especifico de Biomassa-Acetato", 
+  # "Coeficiente Especifico de Biomassa-PRP", 
+  # "Coeficiente Especifico de Acetato-Glicose", 
+  # "Coeficiente Especifico de PRP-Glicose"
+)
+
+# par(mar = c(12, 5, 4, 2)+ 0.1)
+par(mar = c(6, 8.8, 3, 2.2) + 5)
+moduleTraitCor %>% labeledHeatmap(xLabels = xL, yLabels = names(MEs), ySymbols = names(MEs_M), colorLabels = FALSE, colors = blueWhiteRed(50), textMatrix = textMatrix, setStdMargins = FALSE, cex.text = 0.6, zlim = c(-1, 1), main = paste("Kinetic parameters - Modules relationship"), xLabelsAngle = 45)
 ```
 
 
@@ -2268,7 +2559,7 @@ names(tDados) = c("Massa Seca", "[Acetato]", "[Glicose]", "[PRP]", "[CO2]", "[O2
 # datME is a data frame containing expression data, with rows corresponding to samples and columns to genes. Missing values are allowed and will be ignored.
 # y is an optional sample trait vector. It will be treated as an additional eigengene.
 # clusterMEs -> logical: should the module eigengenes be ordered by their dendrogram?
-plotMEpairs(datME,y=tDados[[13]], clusterMEs = TRUE)
+datME %>% plotMEpairs(y=tDados[[13]], clusterMEs = TRUE)
 ```
 
 
@@ -2315,7 +2606,7 @@ plotEigengeneNetworks(MET, "", marDendro = c(0,4,1,2), marHeatmap = c(3,4,1,2), 
 
 
 
-# Moduleâ??????â??????trait relationships
+# Module-trait relationships
 ```{r, fig.width=24, fig.height=14}
 
 nGenes = ncol(datExpr)
@@ -2355,6 +2646,10 @@ labeledHeatmap(Matrix = moduleTraitCor, xLabels = xL, yLabels = names(MEs), ySym
 
 Alldegrees=intramodularConnectivity(adjacency, moduleColors)
 head(Alldegrees)
+
+
+
+
 
 brownmodule = Alldegrees$kWithin[(moduleColors==which.module[[1]])]
 names(brownmodule) = rownames(moduleblocks[[1]])
